@@ -1,5 +1,7 @@
 .viewer-shell {
   position: relative;
+  z-index: 0;
+  isolation: isolate;
   height: min(74dvh, 760px);
   min-height: 520px;
   border-radius: 16px;
@@ -21,6 +23,7 @@
   position: absolute;
   inset: 0;
   z-index: 1;
+  overflow: hidden;
   background: #fff;
   animation: plan-in 280ms ease;
 }

@@ -12,12 +12,19 @@ body { margin: 0; }
 
 button, input, textarea { font: inherit; }
 
-.app { min-height: 100dvh; }
+.app {
+  display: flex;
+  flex-direction: column;
+  height: 100dvh;
+  min-height: 100dvh;
+  overflow: hidden;
+}
 
 header {
-  position: sticky;
-  top: 0;
-  z-index: 1;
+  position: relative;
+  z-index: 10;
+  isolation: isolate;
+  flex: 0 0 auto;
   display: flex;
   flex-wrap: wrap;
   align-items: center;
@@ -47,9 +54,14 @@ header a[aria-current='page'] {
 }
 
 main {
+  position: relative;
+  z-index: 0;
+  flex: 1 1 auto;
   width: min(720px, 100%);
+  min-height: 0;
   margin: 0 auto;
   padding: 16px;
+  overflow: auto;
 }
 
 .capture-layout, .card { display: flex; flex-direction: column; gap: 12px; }
