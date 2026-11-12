@@ -336,7 +336,7 @@ function buildPayload(body: DispatchBody, contractor: Contractor | undefined, ch
   return {
     matterId: body.matter.id,
     title: body.matter.title ?? '',
-    trade: body.triage.trade,
+    trade: contractor?.trade ?? body.triage.trade,
     priority: body.triage.priority,
     location: { floor: pin?.floorId ?? '', room },
     description: body.matter.description ?? '',
