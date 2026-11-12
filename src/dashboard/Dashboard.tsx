@@ -1,16 +1,11 @@
 import { useEffect, useRef, useState, type JSX } from 'react'
+import { getDispatchJob } from '../agent/dispatch'
+import { triageMatter } from '../agent/triage'
+import type { DispatchJob } from '../agent/types'
 import { navigate } from '../shell/router'
 import { getMattersStore, useMatters } from '../store/matters'
 import type { Matter } from '../types'
-import {
-  dispatchLabel,
-  isTerminalJob,
-  loadDispatch,
-  loadTriage,
-  takeTriageResult,
-  toPublicJob,
-  type DispatchJob,
-} from './agent'
+import { dispatchLabel, isTerminalJob, takeTriageResult } from './agent'
 import './dashboard.css'
 
 function priorityRank(matter: Matter): number {
@@ -54,23 +49,6 @@ export function Dashboard(): JSX.Element {
     .join('|')
 
   useEffect(() => {
-    let cancelled = false
-    void (async () => {
-      try {
-        const triage = await loadTriage()
-        const dispatch = await loadDispatch()
-        if (cancelled) return
-        if (triage === 'pending' || dispatch === 'pending') setNote('Agent pending')
-      } catch (err) {
-        if (!cancelled) setNote(errorText(err))
-      }
-    })()
-    return () => {
-      cancelled = true
-    }
-  }, [])
-
-  useEffect(() => {
     if (!pollKey) return
     let cancelled = false
     let timer = 0
@@ -85,17 +63,10 @@ export function Dashboard(): JSX.Element {
           window.clearInterval(timer)
           return
         }
-        const dispatch = await loadDispatch()
-        if (cancelled) return
-        if (dispatch === 'pending') {
-          setNote('Agent pending')
-          window.clearInterval(timer)
-          return
-        }
         const updates: Record<string, DispatchJob | null> = {}
         for (const id of ids) {
           try {
-            updates[id] = toPublicJob(await dispatch.getDispatchJob(id))
+            updates[id] = await getDispatchJob(id)
           } catch (err) {
             if (!cancelled) setNote(errorText(err))
           }
@@ -120,11 +91,6 @@ export function Dashboard(): JSX.Element {
     setBusy(true)
     setNote(null)
     try {
-      const triage = await loadTriage()
-      if (triage === 'pending') {
-        setNote('Agent pending')
-        return
-      }
       const ids = getMattersStore()
         .list()
         .filter((matter) => !matter.triage)
@@ -132,7 +98,7 @@ export function Dashboard(): JSX.Element {
       for (const id of ids) {
         const current = getMattersStore().get(id)
         if (!current || current.triage) continue
-        const picked = takeTriageResult(await triage.triageMatter(current))
+        const picked = takeTriageResult(await triageMatter(current))
         const updatedAt = new Date().toISOString()
         getMattersStore().upsert({
           id: current.id,
@@ -163,7 +129,7 @@ export function Dashboard(): JSX.Element {
         </button>
       </div>
       {note ? (
-        <p className={note === 'Agent pending' ? 'meta' : 'note-error'} role="status">
+        <p className="note-error" role="status">
           {note}
         </p>
       ) : null}

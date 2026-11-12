@@ -1,17 +1,11 @@
 import { useEffect, useRef, useState, type JSX } from 'react'
+import { getDispatchJob, simulateDispatch } from '../agent/dispatch'
+import { triageMatter } from '../agent/triage'
+import type { DispatchJob } from '../agent/types'
 import { navigate } from '../shell/router'
 import { getMattersStore, useMatters } from '../store/matters'
 import type { Matter, SourceKind } from '../types'
-import {
-  dispatchLabel,
-  formatWhen,
-  isTerminalJob,
-  loadDispatch,
-  loadTriage,
-  takeTriageResult,
-  toPublicJob,
-  type DispatchJob,
-} from './agent'
+import { dispatchLabel, formatWhen, isTerminalJob, takeTriageResult } from './agent'
 import './dashboard.css'
 
 function place(matter: Matter): string {
@@ -41,20 +35,7 @@ export function MatterDetail({ matterId }: { matterId: string }): JSX.Element {
   useEffect(() => {
     setJob(null)
     setBusy(null)
-    let cancelled = false
-    void (async () => {
-      try {
-        const triage = await loadTriage()
-        const dispatch = await loadDispatch()
-        if (cancelled) return
-        setNote(triage === 'pending' || dispatch === 'pending' ? 'Agent pending' : null)
-      } catch (err) {
-        if (!cancelled) setNote(errorText(err))
-      }
-    })()
-    return () => {
-      cancelled = true
-    }
+    setNote(null)
   }, [matterId])
 
   useEffect(() => {
@@ -71,14 +52,7 @@ export function MatterDetail({ matterId }: { matterId: string }): JSX.Element {
       }
       running = true
       try {
-        const dispatch = await loadDispatch()
-        if (cancelled) return
-        if (dispatch === 'pending') {
-          setNote('Agent pending')
-          window.clearInterval(timer)
-          return
-        }
-        const next = toPublicJob(await dispatch.getDispatchJob(matterId))
+        const next = await getDispatchJob(matterId)
         if (cancelled) return
         setJob(next)
         if (isTerminalJob(next)) window.clearInterval(timer)
@@ -103,12 +77,7 @@ export function MatterDetail({ matterId }: { matterId: string }): JSX.Element {
     setBusy('triage')
     setNote(null)
     try {
-      const triage = await loadTriage()
-      if (triage === 'pending') {
-        setNote('Agent pending')
-        return
-      }
-      const picked = takeTriageResult(await triage.triageMatter(current))
+      const picked = takeTriageResult(await triageMatter(current))
       const updatedAt = new Date().toISOString()
       getMattersStore().upsert({
         id: current.id,
@@ -136,13 +105,11 @@ export function MatterDetail({ matterId }: { matterId: string }): JSX.Element {
     setBusy('dispatch')
     setNote(null)
     try {
-      const dispatch = await loadDispatch()
-      if (dispatch === 'pending') {
-        setNote('Agent pending')
+      const next = await simulateDispatch(current, current.brief)
+      if (next.status === 'failed') {
+        setJob(next)
         return
       }
-      const next = toPublicJob(await dispatch.simulateDispatch(current, current.brief))
-      if (!next) throw new Error('Unexpected dispatch result')
       const sentAt = new Date().toISOString()
       getMattersStore().upsert({
         ...current,
@@ -184,7 +151,7 @@ export function MatterDetail({ matterId }: { matterId: string }): JSX.Element {
   }
 
   const pinTo = `/?pin=${encodeURIComponent(matter.pin.id)}`
-  const visibleJob = matter.status === 'dispatched' ? job : null
+  const visibleJob = job && (matter.status === 'dispatched' || job.status === 'failed') ? job : null
   const label = visibleJob
     ? dispatchLabel(visibleJob)
     : matter.status === 'dispatched'
@@ -276,7 +243,7 @@ export function MatterDetail({ matterId }: { matterId: string }): JSX.Element {
         </button>
       </div>
       {note ? (
-        <p className={note === 'Agent pending' ? 'meta' : 'note-error'} role="status">
+        <p className="note-error" role="status">
           {note}
         </p>
       ) : null}
