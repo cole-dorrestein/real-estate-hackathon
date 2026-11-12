@@ -158,9 +158,9 @@ export function Dashboard(): JSX.Element {
                 >
                   <span className="title">{matter.title}</span>
                   <span className="meta">{place(matter)}</span>
-                  <span className="meta">{matter.triage?.priority ?? '—'}</span>
+                  <span className={`chip chip-${matter.triage?.priority ?? 'none'}`}>{matter.triage?.priority ?? '—'}</span>
                   <span className="meta">{matter.triage?.trade ?? '—'}</span>
-                  <span className="meta">{matter.status}</span>
+                  <span className={`chip chip-status-${matter.status}`}>{matter.status}</span>
                   {label ? (
                     <span className="dispatch-line">
                       <span className={`badge badge-${job?.status ?? 'dispatched'}`}>{label.text}</span>
