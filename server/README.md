@@ -29,14 +29,18 @@ GROKBOT_WEBHOOK_URL=
 GROKBOT_WEBHOOK_KEY=
 DISPATCH_CALLBACK_BASE_URL=
 DISPATCH_STATUS_DIR=
+DISPATCH_ALLOWED_ORIGINS=
 ```
 
 | Key | Required | Purpose |
 | --- | --- | --- |
 | `GROKBOT_WEBHOOK_URL` | no | Hack-dispatch webhook. If unset, a dispatch is stored as `failed` and the payload is appended to `server/dispatch-failed.jsonl`. |
 | `GROKBOT_WEBHOOK_KEY` | no | Sent as `Authorization: Bearer <key>` and `X-Automation-Key: <key>`. |
-| `DISPATCH_CALLBACK_BASE_URL` | no | Origin only, for example `http://127.0.0.1:8787`. When set, the webhook payload includes `callbackUrl` (`<origin>/api/dispatch/<matterId>/status`) and `statusToken`. |
+| `DISPATCH_CALLBACK_BASE_URL` | no | Origin only, for example `http://127.0.0.1:8787`. When set, the webhook payload includes `callbackUrl` (`<origin>/api/dispatch/<matterId>/status`) and `statusToken`. A `pinUrl` may also start with this origin. |
 | `DISPATCH_STATUS_DIR` | no | Where status files are read. Default `/workspace/hackathon/dispatch-status`. If that directory cannot be created, the server uses `./dispatch-status`. |
+| `DISPATCH_ALLOWED_ORIGINS` | no | Comma-separated extra browser origins allowed to dispatch, for example `http://192.168.1.20:5173`. `http://localhost:5173` and `http://127.0.0.1:5173` are always allowed. |
+
+`POST /api/dispatch` and `POST /api/dispatch/probe` require an `Origin` on that list. Any other origin, or a missing `Origin`, gets 403. The response never reflects an origin that is not on the list. `pinUrl` must start with an allowed origin or `DISPATCH_CALLBACK_BASE_URL`, otherwise 400. A second dispatch for a matter that is not `failed` returns 409 and keeps the existing status token.
 
 The webhook call is one try, 8 second timeout, no retry. HTTP 200 sets the job to `dispatched`. Any failure sets `failed`.
 
@@ -88,7 +92,6 @@ server/contractors.local.json
 server/dispatch-failed.jsonl
 server/dispatch-jobs.json
 dispatch-status/
-hackathon/
 ```
 
-`server/dispatch-jobs.json` stores jobs and the status token. `hackathon/` is the default status directory when `/workspace` is this repo (`/workspace/hackathon/dispatch-status`). `dispatch-status/` is the fallback directory.
+`server/dispatch-jobs.json` stores jobs and the status token. `dispatch-status/` is the fallback status directory.

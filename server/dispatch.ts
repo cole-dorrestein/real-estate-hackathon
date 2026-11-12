@@ -111,6 +111,10 @@ async function handle(req: IncomingMessage, res: ServerResponse): Promise<void> 
 
 async function route(req: IncomingMessage, res: ServerResponse): Promise<void> {
   if (req.method === 'OPTIONS') {
+    if (!originAllowed(req)) {
+      send(req, res, 403, { error: 'origin not allowed' })
+      return
+    }
     res.writeHead(204, corsHeaders(req))
     res.end()
     return
@@ -131,15 +135,37 @@ async function route(req: IncomingMessage, res: ServerResponse): Promise<void> {
   }
 
   if (req.method === 'POST' && path === '/api/dispatch/probe') {
+    if (!originAllowed(req)) {
+      send(req, res, 403, { error: 'origin not allowed' })
+      return
+    }
     await readJson(req)
+    const existing = blockingJob('probe')
+    if (existing) {
+      send(req, res, 409, existing)
+      return
+    }
     send(req, res, 200, await runProbe())
     return
   }
 
   if (req.method === 'POST' && path === '/api/dispatch') {
+    if (!originAllowed(req)) {
+      send(req, res, 403, { error: 'origin not allowed' })
+      return
+    }
     const body = await readJson(req)
     if (!isDispatchBody(body)) {
       send(req, res, 400, { error: 'expected {matter, triage, brief}' })
+      return
+    }
+    if (!pinUrlAllowed(body.brief.pinUrl)) {
+      send(req, res, 400, { error: 'pinUrl is not on an allowed origin' })
+      return
+    }
+    const existing = blockingJob(body.matter.id)
+    if (existing) {
+      send(req, res, 409, existing)
       return
     }
     const contractor = contractors.find((item) => item.trade === body.triage.trade)
@@ -543,15 +569,51 @@ function pathname(req: IncomingMessage): string {
   return path || '/'
 }
 
+function allowedOrigins(): string[] {
+  const defaults = ['http://localhost:5173', 'http://127.0.0.1:5173']
+  const extra = (process.env.DISPATCH_ALLOWED_ORIGINS ?? '')
+    .split(',')
+    .map((origin) => origin.trim())
+    .filter((origin) => origin.length > 0)
+  return [...defaults, ...extra]
+}
+
+function requestOrigin(req: IncomingMessage): string | undefined {
+  const origin = req.headers.origin
+  if (typeof origin !== 'string') return undefined
+  const trimmed = origin.trim()
+  return trimmed.length > 0 ? trimmed : undefined
+}
+
+function originAllowed(req: IncomingMessage): boolean {
+  const origin = requestOrigin(req)
+  return origin !== undefined && allowedOrigins().includes(origin)
+}
+
+function pinUrlAllowed(pinUrl: string): boolean {
+  const bases = [...allowedOrigins()]
+  const callback = process.env.DISPATCH_CALLBACK_BASE_URL?.trim().replace(/\/$/, '')
+  if (callback) bases.push(callback)
+  return bases.some((base) => pinUrl === base || pinUrl.startsWith(`${base}/`) || pinUrl.startsWith(`${base}?`))
+}
+
+function blockingJob(matterId: string): DispatchJob | { error: string } | undefined {
+  const stored = jobs.get(matterId)
+  if (!stored) return undefined
+  if (!stored.job || stored.job.status !== 'failed') return stored.job ?? { error: 'dispatch in progress' }
+  return undefined
+}
+
 function corsHeaders(req: IncomingMessage): Record<string, string> {
-  const origin = typeof req.headers.origin === 'string' && req.headers.origin ? req.headers.origin : '*'
-  return {
-    'Access-Control-Allow-Origin': origin,
+  const headers: Record<string, string> = {
     'Access-Control-Allow-Methods': 'GET, POST, OPTIONS',
     'Access-Control-Allow-Headers': 'Content-Type, X-Status-Token',
     'Access-Control-Max-Age': '86400',
     Vary: 'Origin',
   }
+  const origin = requestOrigin(req)
+  if (origin && allowedOrigins().includes(origin)) headers['Access-Control-Allow-Origin'] = origin
+  return headers
 }
 
 function send(req: IncomingMessage, res: ServerResponse, status: number, body: unknown): void {
