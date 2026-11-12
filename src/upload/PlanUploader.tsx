@@ -1,5 +1,5 @@
 import { useState, type JSX, type MouseEvent } from 'react'
-import type { BuildingPlan, Vec2 } from '../types'
+import type { BuildingPlan, Vec2, Wall } from '../types'
 import { UPLOADED_PLAN_STORAGE_KEY } from './planFile'
 
 const PDFJS_URL = 'https://cdn.jsdelivr.net/npm/pdfjs-dist@4.10.38/build/pdf.min.mjs'
@@ -154,20 +154,51 @@ function toMetres(points: Point[], metresPerPixel: number): Vec2[] {
   return points.map(([x, y]): Vec2 => [round3(x * metresPerPixel), round3(y * metresPerPixel)])
 }
 
+const WALL_THICKNESS = 0.1
+const WALL_HEIGHT = 2.7
+const EDGE_TOLERANCE = 0.05
+
+function nearPoint(a: Vec2, b: Vec2): boolean {
+  return Math.abs(a[0] - b[0]) <= EDGE_TOLERANCE && Math.abs(a[1] - b[1]) <= EDGE_TOLERANCE
+}
+
+function wallsFromRooms(rooms: Array<{ points: Vec2[] }>): Wall[] {
+  const walls: Wall[] = []
+  for (const room of rooms) {
+    const { points } = room
+    for (let index = 0; index < points.length; index += 1) {
+      const from = points[index]
+      const to = points[(index + 1) % points.length]
+      if (nearPoint(from, to)) continue
+      const shared = walls.some(
+        (wall) =>
+          (nearPoint(wall.from, from) && nearPoint(wall.to, to)) ||
+          (nearPoint(wall.from, to) && nearPoint(wall.to, from)),
+      )
+      if (shared) continue
+      walls.push({ from, to, thickness: WALL_THICKNESS, height: WALL_HEIGHT })
+    }
+  }
+  return walls
+}
+
 function buildPlan(floors: FloorDraft[], metresPerPixel: number): BuildingPlan {
   const names = [...new Set(floors.map((floor) => floor.fileName))]
   return {
     source: `uploaded:${names.join('+')}`,
-    floors: floors.map((floor) => ({
-      id: floor.id,
-      elevation: round3(floor.elevation),
-      walls: [],
-      rooms: floor.rooms.map((room) => ({
+    floors: floors.map((floor) => {
+      const rooms = floor.rooms.map((room) => ({
         id: room.id,
         name: room.name,
         points: toMetres(room.points, metresPerPixel),
-      })),
-    })),
+      }))
+      return {
+        id: floor.id,
+        elevation: round3(floor.elevation),
+        rooms,
+        walls: wallsFromRooms(rooms),
+      }
+    }),
   }
 }
 
