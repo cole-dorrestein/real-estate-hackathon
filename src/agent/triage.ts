@@ -34,7 +34,7 @@ export async function triageMatter(matter: Matter): Promise<{ triage: Triage; br
   const at = new Date().toISOString()
   const pinUrl = buildPinUrl(matter.pin.id)
   const location = formatLocation(matter)
-  const name = await lookupContractorName(trade)
+  const name = 'Personal phone'
 
   const triage: Triage = {
     priority,
@@ -94,17 +94,4 @@ function reasoning(tradeKeywords: string[], urgent: string[], broken: boolean, l
     ? `Matched priority keywords: ${priorityBits.join(', ')}.`
     : 'Matched priority keywords: none.'
   return `${tradePart} ${priorityPart}`
-}
-
-async function lookupContractorName(trade: Trade): Promise<string> {
-  try {
-    const res = await fetch(`http://${window.location.hostname}:8787/api/contractors/${trade}`)
-    if (res.ok) {
-      const body = (await res.json()) as { name?: unknown }
-      if (typeof body.name === 'string' && body.name.trim()) return body.name.trim()
-    }
-  } catch {
-    // The brief still builds when the dispatch server is down.
-  }
-  return trade.charAt(0).toUpperCase() + trade.slice(1)
 }

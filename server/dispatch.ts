@@ -181,21 +181,12 @@ async function route(req: IncomingMessage, res: ServerResponse): Promise<void> {
       send(req, res, 409, existing)
       return
     }
-    const contractorId = typeof body.contractorId === 'string' ? body.contractorId.trim() : ''
-    const contractor = contractorId
-      ? findContractor(contractorId)
-      : contractors.find((item) => item.trade === body.triage.trade)
-    if (contractorId && !contractor) {
-      send(req, res, 400, { error: 'unknown contractor' })
-      return
-    }
-    const channel = contractor ? channelFor(contractor) : 'email'
-    const payload = buildPayload(body, contractor, channel)
-    const failure = contractor ? undefined : `no contractor for trade ${body.triage.trade}`
+    const phone = process.env.DISPATCH_PHONE_NUMBER?.trim() ?? ''
+    const contractor: Contractor = { name: 'Personal phone', trade: body.triage.trade, phone }
+    const payload = buildPayload(body, contractor, 'phone')
+    const failure = /^\+[1-9]\d{7,14}$/.test(phone) ? undefined : 'Configure DISPATCH_PHONE_NUMBER in E.164 format'
     const job = await completeDispatch(body.matter.id, payload, {
-      channel,
-      contractorName: contractor?.name ?? body.triage.trade,
-      failure,
+      channel: 'phone', contractorName: 'Personal phone', failure,
     })
     send(req, res, 200, job)
     return
@@ -247,26 +238,9 @@ async function route(req: IncomingMessage, res: ServerResponse): Promise<void> {
   send(req, res, 404, { error: 'not found' })
 }
 
+
 async function runProbe(): Promise<DispatchJob> {
-  const contractor = contractors.find((item) => item.trade === 'general')
-  const channel = contractor ? channelFor(contractor) : 'email'
-  const payload: WebhookPayload = {
-    matterId: 'probe',
-    title: 'Setup probe',
-    trade: 'general',
-    priority: 'P3',
-    location: { floor: 'L1', room: 'unknown room' },
-    description: 'Harmless setup probe.',
-    photoUrls: [],
-    pinUrl: 'http://localhost/?pin=probe',
-    contractor: contractor ? contractorBody(contractor) : { name: 'general', trade: 'general' },
-    channel,
-    probe: true,
-  }
-  return completeDispatch('probe', payload, {
-    channel,
-    contractorName: contractor?.name ?? 'general',
-  })
+  return { matterId: 'probe', status: 'failed', channel: 'phone', updatedAt: new Date().toISOString(), error: 'Phone calls must be started from a matter; no call was placed.' }
 }
 
 async function completeDispatch(
@@ -279,7 +253,7 @@ async function completeDispatch(
   jobs.set(matterId, { statusToken: token, reportAtMs: 0 })
   saveJobs()
 
-  const result = meta.failure ? { ok: false as const, error: meta.failure } : await postWebhook(full)
+  const result = meta.failure ? { ok: false as const, error: meta.failure } : await postPhoneWebhook(full)
   const updatedAt = new Date().toISOString()
   const job: DispatchJob = result.ok
     ? {
@@ -302,32 +276,23 @@ async function completeDispatch(
   return jobs.get(matterId)?.job ?? job
 }
 
-async function postWebhook(payload: WebhookPayload): Promise<{ ok: true } | { ok: false; error: string }> {
+async function postPhoneWebhook(payload: WebhookPayload): Promise<{ ok: true } | { ok: false; error: string }> {
   const url = process.env.GROKBOT_WEBHOOK_URL?.trim()
-  if (!url) return { ok: false, error: 'GROKBOT_WEBHOOK_URL is not set' }
-  const key = process.env.GROKBOT_WEBHOOK_KEY ?? ''
+  const key = process.env.GROKBOT_WEBHOOK_KEY?.trim()
+  if (!url || !key) return { ok: false, error: 'Grok Bot webhook URL and key must be configured.' }
   const controller = new AbortController()
   const timer = setTimeout(() => controller.abort(), WEBHOOK_TIMEOUT_MS)
   try {
     const res = await fetch(url, {
-      method: 'POST',
-      redirect: 'manual',
-      headers: {
-        'Content-Type': 'application/json',
-        Authorization: `Bearer ${key}`,
-        'X-Automation-Key': key,
-      },
-      body: JSON.stringify(payload),
-      signal: controller.signal,
+      method: 'POST', redirect: 'manual',
+      headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${key}`, 'X-Automation-Key': key },
+      body: JSON.stringify(payload), signal: controller.signal,
     })
-    if (res.status === 200) return { ok: true }
-    return { ok: false, error: `webhook returned HTTP ${res.status}` }
-  } catch (err) {
-    if (err instanceof Error && err.name === 'AbortError') return { ok: false, error: 'webhook timed out after 8s' }
-    return { ok: false, error: err instanceof Error ? err.message : 'webhook request failed' }
-  } finally {
-    clearTimeout(timer)
-  }
+    if (res.ok) return { ok: true }
+    return { ok: false, error: `Grok Bot webhook returned HTTP ${res.status}` }
+  } catch {
+    return { ok: false, error: 'Grok Bot did not respond. The call may have been placed; check before retrying.' }
+  } finally { clearTimeout(timer) }
 }
 
 function buildPayload(body: DispatchBody, contractor: Contractor | undefined, channel: DispatchChannel): WebhookPayload {
@@ -665,7 +630,7 @@ function pinUrlAllowed(pinUrl: string): boolean {
 function blockingJob(matterId: string): DispatchJob | { error: string } | undefined {
   const stored = jobs.get(matterId)
   if (!stored) return undefined
-  if (!stored.job || stored.job.status !== 'failed') return stored.job ?? { error: 'dispatch in progress' }
+  if (!stored.job || stored.job.status !== 'failed' || stored.job.error?.includes('may have been placed')) return stored.job ?? { error: 'dispatch in progress' }
   return undefined
 }
 

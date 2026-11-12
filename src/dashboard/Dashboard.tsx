@@ -5,7 +5,7 @@ import type { DispatchJob } from '../agent/types'
 import { navigate } from '../shell/router'
 import { getMattersStore, useMatters } from '../store/matters'
 import type { Matter } from '../types'
-import { dispatchLabel, formatWhen, isTerminalJob, takeTriageResult } from './agent'
+import { formatWhen, isTerminalJob, takeTriageResult } from './agent'
 import './dashboard.css'
 
 function priorityRank(matter: Matter): number {
@@ -36,7 +36,6 @@ function errorText(err: unknown): string {
 export function Dashboard(): JSX.Element {
   const matters = useMatters()
   const ranked = rankMatters(matters)
-  const [chip, setChip] = useState('all')
   const [jobs, setJobs] = useState<Record<string, DispatchJob | null>>({})
   const [note, setNote] = useState<string | null>(null)
   const [busy, setBusy] = useState(false)
@@ -122,103 +121,56 @@ export function Dashboard(): JSX.Element {
     }
   }
 
-  const shown = ranked.filter((matter) => chip === 'all' || (chip === 'open' ? matter.status !== 'dispatched' : chip === 'visit' ? jobs[matter.id]?.status === 'visit_agreed' : chip === 'failed' ? jobs[matter.id]?.status === 'failed' : matter.status === 'dispatched' && jobs[matter.id]?.status !== 'visit_agreed' && jobs[matter.id]?.status !== 'failed'))
+  const columns = [
+    { id: 'new', title: 'New issues', description: 'Ready for review' },
+    { id: 'ready', title: 'Ready to call', description: 'Triaged and ready' },
+    { id: 'calling', title: 'Call requested', description: 'Awaiting an update' },
+    { id: 'contacted', title: 'Contacted', description: 'Call connected' },
+    { id: 'booked', title: 'Visit booked', description: 'Next steps agreed' },
+    { id: 'attention', title: 'Needs attention', description: 'Call needs review' },
+  ] as const
+  function stage(matter: Matter): string {
+    const job = jobs[matter.id]
+    if (matter.callError || job?.status === 'failed') return 'attention'
+    if (job?.status === 'visit_agreed') return 'booked'
+    if (job?.status === 'contacted') return 'contacted'
+    if (matter.status === 'dispatched') return 'calling'
+    return matter.triage ? 'ready' : 'new'
+  }
 
   return (
-    <section className="card dashboard">
+    <section className="dashboard">
       <div className="dash-bar">
-        <h1>Matters</h1>
-        <div className="actions">
-          <button type="button" onClick={() => void triageAll()} disabled={busy || openCount === 0}>
-            {busy ? 'Triaging…' : 'Triage all'}
-          </button>
-        </div>
+        <div><p className="board-eyebrow">PROPERTY OPERATIONS</p><h1>Matters pipeline</h1><p className="meta">Track issues from report to resolution.</p></div>
+        <button type="button" onClick={() => void triageAll()} disabled={busy || openCount === 0}>
+          {busy ? 'Triaging…' : 'Triage all new issues'}
+        </button>
       </div>
-      {note ? (
-        <p className="note-error" role="status">
-          {note}
-        </p>
-      ) : null}
-      <div className="filters" role="group" aria-label="Filter matters">
-        {(
-          [
-            ['all', 'All'],
-            ['open', 'Open'],
-            ['dispatched', 'Dispatched'],
-            ['visit', 'Visit booked'],
-            ['failed', 'Failed'],
-          ] as const
-        ).map(([id, text]) => (
-          <button key={id} type="button" className="filter-chip" aria-pressed={chip === id} onClick={() => setChip(id)}>
-            {text}
-          </button>
-        ))}
-      </div>
-      {ranked.length === 0 ? (
-        <p>No matters yet.</p>
-      ) : (
-        <div className="table-wrap">
-          <table className="matter-table">
-            <thead>
-              <tr>
-                <th>Priority</th>
-                <th>Title</th>
-                <th>Location</th>
-                <th>Trade</th>
-                <th>Contractor</th>
-                <th>Status</th>
-                <th>Visit</th>
-              </tr>
-            </thead>
-            <tbody>
-              {shown.map((matter) => {
+      {note ? <p className="note-error" role="status">{note}</p> : null}
+      <div className="matter-board" aria-label="Matter pipeline">
+        {columns.map((column) => {
+          const items = ranked.filter((matter) => stage(matter) === column.id)
+          return <section className={`board-column board-${column.id}`} key={column.id} aria-label={column.title}>
+            <div className="board-column-heading"><span className="board-dot" /><h2>{column.title}</h2><span className="board-count">{items.length}</span></div>
+            <p className="board-description">{column.description}</p>
+            <div className="board-cards">
+              {items.map((matter) => {
                 const to = `/dashboard/matters/${encodeURIComponent(matter.id)}`
-                const job = matter.status === 'dispatched' ? (jobs[matter.id] ?? null) : null
-                const label = job
-                  ? dispatchLabel(job)
-                  : matter.status === 'dispatched'
-                    ? { text: 'Dispatched', error: undefined }
-                    : null
-                const contractor = job?.contractorName ?? matter.dispatch?.contractorName ?? matter.brief?.contractorName
-                return (
-                  <tr key={matter.id} className="matter-row">
-                    <td>
-                      <span className={`chip chip-${matter.triage?.priority ?? 'none'}`}>{matter.triage?.priority ?? '—'}</span>
-                    </td>
-                    <td>
-                      <a
-                        className="matter-link"
-                        href={to}
-                        onClick={(event) => {
-                          event.preventDefault()
-                          navigate(to)
-                        }}
-                      >
-                        <span className="title">{matter.title}</span>
-                      </a>
-                    </td>
-                    <td>{place(matter)}</td>
-                    <td>{matter.triage?.trade ?? matter.issueType ?? '—'}</td>
-                    <td>{contractor ?? '—'}</td>
-                    <td>
-                      {label ? (
-                        <span className="dispatch-line">
-                          <span className={`badge badge-${job?.status ?? 'dispatched'}`}>{label.text}</span>
-                          {label.error ? <span className="note-error">{label.error}</span> : null}
-                        </span>
-                      ) : (
-                        <span className={`chip chip-status-${matter.status}`}>{matter.status}</span>
-                      )}
-                    </td>
-                    <td>{job?.visitAt ? formatWhen(job.visitAt) : '—'}</td>
-                  </tr>
-                )
+                const job = jobs[matter.id]
+                return <a className="board-card" key={matter.id} href={to} onClick={(event) => { event.preventDefault(); navigate(to) }}>
+                  <div className="board-card-top"><span className="board-trade">{matter.triage?.trade ?? matter.issueType ?? 'General'}</span><span className={`chip chip-${matter.triage?.priority ?? 'none'}`}>{matter.triage?.priority ?? 'New'}</span></div>
+                  <strong>{matter.title}</strong>
+                  <p>{matter.description}</p>
+                  <div className="board-card-footer"><span>{place(matter)}</span>{matter.sources.some((source) => source.kind === 'photo') ? <span>Photo attached</span> : null}</div>
+                  {job?.visitAt ? <span className="board-call-detail">Visit: {formatWhen(job.visitAt)}</span> : null}
+                  {matter.callError || job?.error ? <span className="note-error">{matter.callError || job?.error}</span> : null}
+                </a>
               })}
-            </tbody>
-          </table>
-          {shown.length === 0 ? <p className="meta">No matters in this view.</p> : null}
-        </div>
-      )}
+              {items.length === 0 ? <p className="board-empty">No matters here</p> : null}
+            </div>
+          </section>
+        })}
+      </div>
     </section>
   )
 }
