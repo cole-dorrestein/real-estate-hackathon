@@ -1,0 +1,149 @@
+.cap-hint {
+  position: fixed;
+  left: 50%;
+  bottom: 12px;
+  z-index: 30;
+  width: min(696px, calc(100% - 24px));
+  margin: 0;
+  padding: 14px 16px;
+  border-radius: 14px;
+  background: #1f3a2e;
+  color: #fff;
+  font-weight: 700;
+  text-align: center;
+  box-shadow: 0 8px 24px rgba(28, 25, 21, 0.22);
+  transform: translateX(-50%);
+}
+
+.cap-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 30;
+  background: rgba(28, 25, 21, 0.4);
+}
+
+.cap-sheet {
+  position: fixed;
+  left: 50%;
+  bottom: 0;
+  z-index: 31;
+  width: min(720px, 100%);
+  transform: translateX(-50%);
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  max-height: 85dvh;
+  overflow: auto;
+  margin: 0;
+  padding: 10px 16px calc(16px + env(safe-area-inset-bottom));
+  border-radius: 20px 20px 0 0;
+  background: #fff;
+  box-shadow: 0 -12px 40px rgba(28, 25, 21, 0.22);
+}
+
+.cap-grab {
+  width: 44px;
+  height: 5px;
+  margin: 0 auto 4px;
+  border-radius: 999px;
+  background: #d9d0c2;
+}
+
+.cap-place {
+  font-size: 1.05rem;
+  font-weight: 700;
+}
+
+.cap-sheet label.cap-field {
+  font-weight: 700;
+}
+
+.cap-sheet input,
+.cap-sheet textarea {
+  font-weight: 400;
+  min-height: 48px;
+}
+
+.cap-sheet textarea {
+  min-height: 96px;
+  resize: vertical;
+}
+
+.cap-file {
+  position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 52px;
+  border-radius: 12px;
+  background: #e7e0d4;
+  color: #1c1915;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.cap-file input {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border: 0;
+  min-height: 0;
+}
+
+.cap-photos {
+  display: flex;
+  gap: 8px;
+  margin: 0;
+  padding: 0;
+  overflow-x: auto;
+  list-style: none;
+}
+
+.cap-photos li {
+  display: flex;
+  flex: 0 0 auto;
+  flex-direction: column;
+  gap: 4px;
+  padding: 0;
+  border: 0;
+}
+
+.cap-photos img {
+  width: 96px;
+  height: 96px;
+  object-fit: cover;
+}
+
+.cap-photos button {
+  min-height: 40px;
+  background: #e7e0d4;
+  color: #1c1915;
+}
+
+.cap-dictate,
+.cap-actions button {
+  width: 100%;
+  min-height: 52px;
+  font-weight: 700;
+}
+
+.cap-actions {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.cap-status {
+  color: #5e584f;
+  font-weight: 600;
+}
+
+.cap-error {
+  color: #8a2b2b;
+  font-weight: 700;
+}
