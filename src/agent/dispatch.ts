@@ -1,8 +1,12 @@
 import type { ContractorBrief, Matter, SourceRef } from '../types'
 import { triageMatter } from './triage'
-import type { DispatchJob } from './types'
+import type { DispatchJob, ListedContractor } from './types'
 
-export async function simulateDispatch(matter: Matter, brief: ContractorBrief): Promise<DispatchJob> {
+export async function simulateDispatch(
+  matter: Matter,
+  brief: ContractorBrief,
+  contractorId?: string,
+): Promise<DispatchJob> {
   try {
     const triage = matter.triage ?? (await triageMatter(matter)).triage
     const res = await fetch(endpoint('/api/dispatch'), {
@@ -12,6 +16,7 @@ export async function simulateDispatch(matter: Matter, brief: ContractorBrief): 
         matter: stripDataPhotos(matter),
         triage,
         brief,
+        ...(contractorId ? { contractorId } : {}),
       }),
     })
     const text = await res.text()
@@ -35,6 +40,14 @@ export async function getDispatchJob(matterId: string): Promise<DispatchJob | nu
   }
 }
 
+export async function listContractors(): Promise<ListedContractor[]> {
+  const res = await fetch(endpoint('/api/contractors'))
+  if (!res.ok) throw new Error(`Could not load contractors (${res.status})`)
+  const body: unknown = JSON.parse(await res.text())
+  if (!Array.isArray(body)) return []
+  return body.filter(isListedContractor)
+}
+
 function endpoint(path: string): string {
   return `http://${window.location.hostname}:8787${path}`
 }
@@ -56,11 +69,20 @@ function stripDataUrl(source: SourceRef): SourceRef {
 function parseJob(text: string): DispatchJob | null {
   try {
     const job = JSON.parse(text) as DispatchJob
-    if (job && typeof job.matterId === 'string' && typeof job.status === 'string') return job
+    if (job && typeof job.matterId === 'string' && typeof job.status === 'string') {
+      if (typeof job.summary !== 'string') delete job.summary
+      return job
+    }
   } catch {
     // Not a job payload.
   }
   return null
+}
+
+function isListedContractor(value: unknown): value is ListedContractor {
+  if (!value || typeof value !== 'object') return false
+  const item = value as Record<string, unknown>
+  return typeof item.id === 'string' && typeof item.name === 'string' && typeof item.trade === 'string'
 }
 
 function failedJob(matterId: string, error: string): DispatchJob {

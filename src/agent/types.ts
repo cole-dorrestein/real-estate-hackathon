@@ -7,7 +7,17 @@ export type DispatchJob = {
   status: DispatchJobStatus
   channel?: DispatchChannel
   visitAt?: string
+  summary?: string
   contractorName?: string
   updatedAt: string
   error?: string
+}
+
+export type ListedContractor = {
+  id: string
+  name: string
+  trade: string
+  channel: DispatchChannel
+  phone?: string
+  email?: string
 }
