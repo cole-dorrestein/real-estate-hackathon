@@ -52,6 +52,10 @@ main {
   padding: 16px;
 }
 
+main:has(.plan-stage) {
+  width: min(1080px, 100%);
+}
+
 .capture-layout, .card { display: flex; flex-direction: column; gap: 12px; }
 
 .card {
@@ -109,3 +113,93 @@ button.secondary { background: #e7e0d4; color: #1c1915; }
 a { color: #1f3a2e; }
 
 img { display: block; border-radius: 8px; background: #efe7da; }
+
+.plan-stage {
+  position: relative;
+  height: min(72dvh, 740px);
+  min-height: 300px;
+  border-radius: 16px;
+  overflow: hidden;
+  background: #f4f0e8;
+  box-shadow: 0 10px 30px rgba(48, 38, 22, 0.08);
+  touch-action: none;
+}
+
+.floor-toggle {
+  position: absolute;
+  z-index: 5;
+  top: 12px;
+  left: 12px;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  max-width: calc(100% - 24px);
+}
+
+.floor-toggle button {
+  min-height: 44px;
+  padding: 8px 14px;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.9);
+  color: #1f3a2e;
+  box-shadow: 0 1px 4px rgba(40, 32, 20, 0.12);
+}
+
+.floor-toggle button[aria-pressed='true'] {
+  background: #1f3a2e;
+  color: #fff;
+}
+
+.plan-hint {
+  position: absolute;
+  z-index: 5;
+  left: 12px;
+  bottom: 12px;
+  margin: 0;
+  padding: 6px 10px;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.86);
+  color: #5e584f;
+  font-size: 0.82rem;
+  pointer-events: none;
+}
+
+.room-label {
+  font-size: 12px;
+  font-weight: 650;
+  color: #3c352c;
+  white-space: nowrap;
+  text-shadow: 0 1px 0 rgba(255, 255, 255, 0.75);
+}
+
+.floor-chip {
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  color: #1f3a2e;
+  background: rgba(255, 255, 255, 0.9);
+  border-radius: 999px;
+  padding: 3px 8px;
+}
+
+.pin-label {
+  font-size: 12px;
+  font-weight: 700;
+  color: #fff;
+  background: #1f3a2e;
+  border-radius: 8px;
+  padding: 4px 8px;
+  white-space: nowrap;
+  box-shadow: 0 4px 12px rgba(28, 25, 21, 0.18);
+}
+
+@media (max-width: 700px) {
+  .plan-stage {
+    height: min(46dvh, 380px);
+    min-height: 260px;
+  }
+
+  .plan-hint {
+    font-size: 0.75rem;
+  }
+}
