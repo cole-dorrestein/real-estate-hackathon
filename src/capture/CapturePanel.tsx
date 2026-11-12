@@ -114,7 +114,7 @@ function CaptureSheet(props: {
     }
     const session = new Ctor()
     let transcript = ''
-    session.lang = 'en-US'
+    session.lang = 'en-GB'
     session.interimResults = true
     session.continuous = false
     session.onresult = (event) => {
@@ -174,13 +174,17 @@ function CaptureSheet(props: {
     for (const text of dictations) {
       sources.push({ id: crypto.randomUUID(), kind: 'dictation', text, createdAt: now })
     }
-    props.onSave({
-      title: inferIssue(descriptionText).title || 'Untitled matter',
-      issueType: inferIssue(descriptionText).trade,
-      description: descriptionText,
-      sources,
-      pin,
-    })
+    try {
+      props.onSave({
+        title: inferIssue(descriptionText).title || 'Untitled matter',
+        issueType: inferIssue(descriptionText).trade,
+        description: descriptionText,
+        sources,
+        pin,
+      })
+    } catch {
+      setError('Could not save this issue. Browser storage may be full; try removing a photo.')
+    }
   }
 
   return (

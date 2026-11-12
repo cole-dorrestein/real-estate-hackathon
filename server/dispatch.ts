@@ -500,6 +500,11 @@ function parseReport(value: unknown, matterId: string): StatusReport | null {
 }
 
 function tokenFrom(req: IncomingMessage, body: unknown): string | undefined {
+  const authorization = req.headers.authorization
+  if (typeof authorization === 'string') {
+    const match = authorization.match(/^Bearer\s+(\S+)\s*$/i)
+    if (match) return match[1]
+  }
   const header = req.headers['x-status-token']
   if (typeof header === 'string' && header.trim()) return header.trim()
   if (body && typeof body === 'object') {
@@ -667,7 +672,7 @@ function blockingJob(matterId: string): DispatchJob | { error: string } | undefi
 function corsHeaders(req: IncomingMessage): Record<string, string> {
   const headers: Record<string, string> = {
     'Access-Control-Allow-Methods': 'GET, POST, OPTIONS',
-    'Access-Control-Allow-Headers': 'Content-Type, X-Status-Token',
+    'Access-Control-Allow-Headers': 'Content-Type, Authorization, X-Status-Token',
     'Access-Control-Max-Age': '86400',
     Vary: 'Origin',
   }

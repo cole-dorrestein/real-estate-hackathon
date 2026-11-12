@@ -76,7 +76,7 @@ export function MatterDetail({ matterId }: { matterId: string }): JSX.Element {
 
   async function onTriage() {
     const current = getMattersStore().get(matterId)
-    if (!current) return
+    if (!current || current.status === 'dispatched') return
     setBusy('triage')
     setNote(null)
     try {
@@ -122,7 +122,7 @@ export function MatterDetail({ matterId }: { matterId: string }): JSX.Element {
           status: 'simulated',
           channel: 'dashboard',
           sentAt,
-          contractorName: current.brief.contractorName,
+          contractorName: next.contractorName ?? current.brief.contractorName,
         },
         updatedAt: sentAt,
       })
@@ -243,7 +243,7 @@ export function MatterDetail({ matterId }: { matterId: string }): JSX.Element {
       ) : null}
 
       <div className="actions">
-        <button type="button" onClick={() => void onTriage()} disabled={busy !== null}>
+        <button type="button" onClick={() => void onTriage()} disabled={busy !== null || matter.status === 'dispatched'}>
           {busy === 'triage' ? 'Triaging…' : 'Triage'}
         </button>
         <button

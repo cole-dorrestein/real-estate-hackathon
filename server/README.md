@@ -79,7 +79,7 @@ Contacts stay on the server. `server/contractors.example.json` has obvious place
 
 `status` is `contacted`, `visit_agreed`, or `failed`. `summary` is optional: a call transcript or short summary. The server copies it onto the job, and `GET /api/dispatch/:matterId` returns it. The latest report wins (file or callback).
 
-`POST /api/dispatch/:matterId/status` is the optional callback. It requires the job's `statusToken` in the `X-Status-Token` header or a `statusToken` field. Same body shape as the status file.
+`POST /api/dispatch/:matterId/status` is the optional callback. It requires the job's `statusToken` as `Authorization: Bearer <statusToken>`, in the `X-Status-Token` header, or in a `statusToken` field. Same body shape as the status file.
 
 Jobs are kept in memory and in `server/dispatch-jobs.json` (includes the status token; do not commit).
 
