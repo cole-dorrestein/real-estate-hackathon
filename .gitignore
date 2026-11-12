@@ -5,6 +5,10 @@ dist/
 .env.local
 .env*.local
 
+server/contractors.local.json
+server/dispatch-failed.jsonl
+dispatch-status/
+
 # ResPlan download and conversion scratch. Never commit the dataset.
 .tmp-resplan/
 ResPlan.zip
