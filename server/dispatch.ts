@@ -36,6 +36,7 @@ type StatusReport = {
   status: ReportStatus
   channel?: DispatchChannel
   visitAt?: string
+  summary?: string
   error?: string
   at?: string
 }
@@ -57,7 +58,10 @@ type DispatchBody = {
   }
   triage: { trade: Trade; priority: Priority }
   brief: { pinUrl: string }
+  contractorId?: string
 }
+
+const PICKER_TRADES: readonly Trade[] = ['plumber', 'electrician']
 
 const TRADES: Trade[] = ['plumber', 'electrician', 'carpenter', 'general']
 const PRIORITIES: Priority[] = ['P1', 'P2', 'P3']
@@ -122,6 +126,15 @@ async function route(req: IncomingMessage, res: ServerResponse): Promise<void> {
 
   const path = pathname(req)
 
+  if (req.method === 'GET' && path === '/api/contractors') {
+    if (!originAllowed(req)) {
+      send(req, res, 403, { error: 'origin not allowed' })
+      return
+    }
+    send(req, res, 200, listPickerContractors())
+    return
+  }
+
   const contractorMatch = path.match(/^\/api\/contractors\/([^/]+)$/)
   if (req.method === 'GET' && contractorMatch) {
     const trade = decodeURIComponent(contractorMatch[1] ?? '')
@@ -168,7 +181,14 @@ async function route(req: IncomingMessage, res: ServerResponse): Promise<void> {
       send(req, res, 409, existing)
       return
     }
-    const contractor = contractors.find((item) => item.trade === body.triage.trade)
+    const contractorId = typeof body.contractorId === 'string' ? body.contractorId.trim() : ''
+    const contractor = contractorId
+      ? findContractor(contractorId)
+      : contractors.find((item) => item.trade === body.triage.trade)
+    if (contractorId && !contractor) {
+      send(req, res, 400, { error: 'unknown contractor' })
+      return
+    }
     const channel = contractor ? channelFor(contractor) : 'email'
     const payload = buildPayload(body, contractor, channel)
     const failure = contractor ? undefined : `no contractor for trade ${body.triage.trade}`
@@ -316,7 +336,7 @@ function buildPayload(body: DispatchBody, contractor: Contractor | undefined, ch
   return {
     matterId: body.matter.id,
     title: body.matter.title ?? '',
-    trade: body.triage.trade,
+    trade: contractor?.trade ?? body.triage.trade,
     priority: body.triage.priority,
     location: { floor: pin?.floorId ?? '', room },
     description: body.matter.description ?? '',
@@ -344,6 +364,41 @@ function contractorBody(contractor: Contractor): WebhookPayload['contractor'] {
 
 function channelFor(contractor: Contractor): DispatchChannel {
   return contractor.phone ? 'phone' : 'email'
+}
+
+function findContractor(id: string): Contractor | undefined {
+  const byTrade = contractors.find((item) => item.trade === id)
+  if (byTrade) return byTrade
+  if (/^\d+$/.test(id)) return contractors[Number(id)]
+  return undefined
+}
+
+function listPickerContractors(): {
+  id: string
+  name: string
+  trade: Trade
+  channel: DispatchChannel
+  phone?: string
+  email?: string
+}[] {
+  return contractors.filter((item) => PICKER_TRADES.includes(item.trade)).map((contractor) => {
+    const item: {
+      id: string
+      name: string
+      trade: Trade
+      channel: DispatchChannel
+      phone?: string
+      email?: string
+    } = {
+      id: contractor.trade,
+      name: contractor.name,
+      trade: contractor.trade,
+      channel: channelFor(contractor),
+    }
+    if (contractor.phone) item.phone = contractor.phone
+    else if (contractor.email) item.email = contractor.email
+    return item
+  })
 }
 
 function callbackFields(matterId: string, token: string): { callbackUrl?: string; statusToken?: string } {
@@ -409,6 +464,8 @@ function applyReport(stored: StoredJob, report: StatusReport, timeMs: number): b
   }
   if (report.status === 'visit_agreed') next.visitAt = report.visitAt ?? stored.job.visitAt
   if (report.status === 'failed') next.error = report.error || 'dispatch failed'
+  if (typeof report.summary === 'string') next.summary = report.summary
+  else if (stored.job.summary) next.summary = stored.job.summary
   stored.job = next
   return true
 }
@@ -428,6 +485,7 @@ function parseReport(value: unknown, matterId: string): StatusReport | null {
   if (!isOneOf(body.status, REPORT_STATUSES)) return null
   if (body.channel !== undefined && body.channel !== 'phone' && body.channel !== 'email') return null
   if (body.visitAt !== undefined && typeof body.visitAt !== 'string') return null
+  if (body.summary !== undefined && typeof body.summary !== 'string') return null
   if (body.error !== undefined && typeof body.error !== 'string') return null
   if (body.at !== undefined && typeof body.at !== 'string') return null
   return {
@@ -435,6 +493,7 @@ function parseReport(value: unknown, matterId: string): StatusReport | null {
     status: body.status,
     channel: body.channel,
     visitAt: body.visitAt,
+    summary: typeof body.summary === 'string' ? body.summary : undefined,
     error: body.error,
     at: body.at,
   }
@@ -542,6 +601,7 @@ function isDispatchBody(value: unknown): value is DispatchBody {
   const trade = (triage as { trade?: unknown }).trade
   const priority = (triage as { priority?: unknown }).priority
   const pinUrl = (brief as { pinUrl?: unknown }).pinUrl
+  if (body.contractorId !== undefined && typeof body.contractorId !== 'string') return false
   return (
     typeof matterId === 'string' &&
     matterId.length > 0 &&

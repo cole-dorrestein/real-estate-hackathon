@@ -6,6 +6,7 @@ import { navigate } from '../shell/router'
 import { getMattersStore, useMatters } from '../store/matters'
 import type { Matter, SourceKind } from '../types'
 import { dispatchLabel, formatWhen, isTerminalJob, takeTriageResult } from './agent'
+import { ContractorPicker } from './ContractorPicker'
 import './dashboard.css'
 
 function place(matter: Matter): string {
@@ -28,6 +29,7 @@ export function MatterDetail({ matterId }: { matterId: string }): JSX.Element {
   const [job, setJob] = useState<DispatchJob | null>(null)
   const [note, setNote] = useState<string | null>(null)
   const [busy, setBusy] = useState<'triage' | 'dispatch' | null>(null)
+  const [contractorId, setContractorId] = useState('')
   const jobRef = useRef(job)
   jobRef.current = job
   const status = matter?.status
@@ -36,6 +38,7 @@ export function MatterDetail({ matterId }: { matterId: string }): JSX.Element {
     setJob(null)
     setBusy(null)
     setNote(null)
+    setContractorId('')
   }, [matterId])
 
   useEffect(() => {
@@ -92,6 +95,7 @@ export function MatterDetail({ matterId }: { matterId: string }): JSX.Element {
         updatedAt,
       })
       setJob(null)
+      setContractorId('')
     } catch (err) {
       setNote(errorText(err))
     } finally {
@@ -105,7 +109,7 @@ export function MatterDetail({ matterId }: { matterId: string }): JSX.Element {
     setBusy('dispatch')
     setNote(null)
     try {
-      const next = await simulateDispatch(current, current.brief)
+      const next = await simulateDispatch(current, current.brief, contractorId || undefined)
       if (next.status === 'failed') {
         setJob(next)
         return
@@ -228,8 +232,14 @@ export function MatterDetail({ matterId }: { matterId: string }): JSX.Element {
             <span className={`badge badge-${visibleJob?.status ?? 'dispatched'}`}>{label.text}</span>
             {contractor ? <span className="meta">{contractor}</span> : null}
           </p>
+          {visibleJob?.status === 'visit_agreed' ? <h2>Visit booked: {visibleJob.visitAt ?? ''}</h2> : null}
+          {visibleJob?.summary ? <p className="brief-body">{visibleJob.summary}</p> : null}
           {label.error ? <p className="note-error">{label.error}</p> : null}
         </section>
+      ) : null}
+
+      {canDispatch ? (
+        <ContractorPicker trade={matter.triage?.trade} value={contractorId} onChange={setContractorId} />
       ) : null}
 
       <div className="actions">

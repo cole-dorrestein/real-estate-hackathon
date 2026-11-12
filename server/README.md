@@ -50,9 +50,11 @@ Contacts stay on the server. `server/contractors.example.json` has obvious place
 
 `GET /api/contractors/:trade` returns `{ "name", "channel" }` and nothing else. `channel` is `phone` when that contractor has a phone, otherwise `email`.
 
+`GET /api/contractors` uses the same `Origin` allowlist as dispatch. It returns only the plumber and electrician, each as `{ "id", "name", "trade", "channel" }` plus `phone` or `email`. `id` is the trade (the file index also works as an id on dispatch). Phone or email is included so the dashboard can show it.
+
 ## HTTP
 
-`POST /api/dispatch` body: `{ matter, triage, brief }`. `matter` must not include `data:` photo URLs. The server picks the contractor by `triage.trade` and posts this webhook payload (http(s) photo URLs only):
+`POST /api/dispatch` body: `{ matter, triage, brief, contractorId? }`. `matter` must not include `data:` photo URLs. With no `contractorId`, the server picks the contractor by `triage.trade`, unchanged. When `contractorId` is present, that contractor is used instead. It posts this webhook payload (http(s) photo URLs only):
 
 ```json
 {
@@ -72,10 +74,10 @@ Contacts stay on the server. `server/contractors.example.json` has obvious place
 `GET /api/dispatch/:matterId` returns the current job. On each read the server also applies `DISPATCH_STATUS_DIR/<matterId>.json` when that report is newer. Shape:
 
 ```json
-{ "matterId": "matter-faucet", "status": "visit_agreed", "channel": "phone", "visitAt": "Friday 09:00", "at": "2026-11-12T21:00:00.000Z" }
+{ "matterId": "matter-faucet", "status": "visit_agreed", "channel": "phone", "visitAt": "Friday 09:00", "summary": "Spoke to the plumber and booked Friday morning.", "at": "2026-11-12T21:00:00.000Z" }
 ```
 
-`status` is `contacted`, `visit_agreed`, or `failed`. The latest report wins (file or callback).
+`status` is `contacted`, `visit_agreed`, or `failed`. `summary` is optional: a call transcript or short summary. The server copies it onto the job, and `GET /api/dispatch/:matterId` returns it. The latest report wins (file or callback).
 
 `POST /api/dispatch/:matterId/status` is the optional callback. It requires the job's `statusToken` in the `X-Status-Token` header or a `statusToken` field. Same body shape as the status file.
 
