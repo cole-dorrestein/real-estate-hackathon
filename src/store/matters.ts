@@ -52,11 +52,12 @@ const store: MattersStore = {
   upsert(matter) {
     const current = ensure()
     const index = current.findIndex((item) => item.id === matter.id)
-    snapshot =
+    const next =
       index >= 0 ? current.map((item, i) => (i === index ? matter : item)) : [...current, matter]
     if (typeof localStorage !== 'undefined') {
-      localStorage.setItem(MATTERS_STORAGE_KEY, JSON.stringify(snapshot))
+      localStorage.setItem(MATTERS_STORAGE_KEY, JSON.stringify(next))
     }
+    snapshot = next
     emit()
   },
   subscribe(listener) {

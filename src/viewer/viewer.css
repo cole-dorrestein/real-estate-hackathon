@@ -1,0 +1,135 @@
+.viewer-shell {
+  position: relative;
+  height: min(74dvh, 760px);
+  min-height: 520px;
+  border-radius: 16px;
+  overflow: hidden;
+  background: #e7ebef;
+  box-shadow: inset 0 0 0 1px rgba(28, 32, 36, 0.08);
+}
+
+.viewer-stage,
+.viewer-stage canvas {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  display: block;
+}
+
+.plan-stage {
+  position: absolute;
+  inset: 0;
+  z-index: 1;
+  background: #fff;
+  animation: plan-in 280ms ease;
+}
+
+@keyframes plan-in {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+.plan-svg {
+  width: 100%;
+  height: 100%;
+  display: block;
+  font-family: ui-sans-serif, system-ui, sans-serif;
+  cursor: default;
+}
+
+.plan-svg polygon { cursor: pointer; }
+
+.pin-ring {
+  animation: pin-fade 1.5s ease-in-out infinite;
+  transform-origin: center;
+  transform-box: fill-box;
+}
+
+@keyframes pin-fade {
+  0%, 100% { opacity: 0.95; }
+  50% { opacity: 0.25; }
+}
+
+.viewer-toolbar {
+  position: absolute;
+  z-index: 2;
+  top: 10px;
+  left: 10px;
+  right: 10px;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  pointer-events: none;
+}
+
+.viewer-shell button.viewer-chip {
+  pointer-events: auto;
+  min-height: 44px;
+  padding: 8px 14px;
+  border-radius: 999px;
+  border: 1px solid rgba(22, 22, 22, 0.08);
+  background: rgba(255, 255, 255, 0.94);
+  color: #1c1c1c;
+  box-shadow: 0 6px 16px rgba(28, 32, 36, 0.12);
+}
+
+.viewer-shell button.viewer-chip.is-hot,
+.viewer-shell button.viewer-chip:hover {
+  border-color: #1c1c1c;
+}
+
+.viewer-shell button.viewer-chip[aria-pressed='true'] {
+  background: #161616;
+  color: #fff;
+  border-color: #161616;
+}
+
+.viewer-shell.is-plan {
+  background: #fff;
+}
+
+.viewer-shell.is-plan button.viewer-chip {
+  background: #fff;
+  color: #161616;
+  border: 1px solid #161616;
+  box-shadow: none;
+}
+
+.viewer-shell.is-plan button.viewer-chip[aria-pressed='true'] {
+  background: #161616;
+  color: #fff;
+}
+
+.viewer-hint {
+  position: absolute;
+  z-index: 2;
+  left: 50%;
+  bottom: 14px;
+  transform: translateX(-50%);
+  width: max-content;
+  max-width: calc(100% - 24px);
+  margin: 0;
+  padding: 8px 12px;
+  border-radius: 999px;
+  background: rgba(22, 22, 22, 0.82);
+  color: #fff;
+  font-size: 13px;
+  line-height: 1.35;
+  text-align: center;
+  pointer-events: none;
+}
+
+.floor-tag {
+  padding: 4px 8px;
+  border-radius: 999px;
+  background: rgba(22, 22, 22, 0.88);
+  color: #fff;
+  font: 700 12px/1.2 ui-sans-serif, system-ui, sans-serif;
+  white-space: nowrap;
+}
+
+@media (max-width: 640px) {
+  .viewer-shell { min-height: 440px; border-radius: 12px; }
+  .viewer-toolbar { gap: 6px; }
+}

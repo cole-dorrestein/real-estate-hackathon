@@ -27,7 +27,7 @@ export function takeTriageResult(value: { triage: Triage; brief: ContractorBrief
 }
 
 export function dispatchLabel(job: DispatchJob): { text: string; error?: string } {
-  if (job.status === 'dispatched') return { text: 'Dispatched' }
+  if (job.status === 'dispatched') return { text: 'Call requested' }
   if (job.status === 'contacted' && job.channel === 'phone') return { text: 'Contacted via phone' }
   if (job.status === 'contacted' && job.channel === 'email') return { text: 'Contacted via email' }
   if (job.status === 'contacted') return { text: 'Contacted' }

@@ -19,6 +19,7 @@ export function App() {
   function onSave(input: {
     title: string
     description: string
+    issueType: NonNullable<Matter['issueType']>
     sources: Matter['sources']
     pin: Matter['pin']
   }) {
@@ -27,6 +28,7 @@ export function App() {
       id: `matter-${crypto.randomUUID()}`,
       title: input.title,
       description: input.description,
+      issueType: input.issueType,
       pin: input.pin,
       sources: input.sources,
       status: 'open',

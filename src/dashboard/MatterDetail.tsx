@@ -6,7 +6,6 @@ import { navigate } from '../shell/router'
 import { getMattersStore, useMatters } from '../store/matters'
 import type { Matter, SourceKind } from '../types'
 import { dispatchLabel, formatWhen, isTerminalJob, takeTriageResult } from './agent'
-import { ContractorPicker } from './ContractorPicker'
 import './dashboard.css'
 
 function place(matter: Matter): string {
@@ -29,7 +28,6 @@ export function MatterDetail({ matterId }: { matterId: string }): JSX.Element {
   const [job, setJob] = useState<DispatchJob | null>(null)
   const [note, setNote] = useState<string | null>(null)
   const [busy, setBusy] = useState<'triage' | 'dispatch' | null>(null)
-  const [contractorId, setContractorId] = useState('')
   const jobRef = useRef(job)
   jobRef.current = job
   const status = matter?.status
@@ -38,7 +36,6 @@ export function MatterDetail({ matterId }: { matterId: string }): JSX.Element {
     setJob(null)
     setBusy(null)
     setNote(null)
-    setContractorId('')
   }, [matterId])
 
   useEffect(() => {
@@ -76,13 +73,15 @@ export function MatterDetail({ matterId }: { matterId: string }): JSX.Element {
 
   async function onTriage() {
     const current = getMattersStore().get(matterId)
-    if (!current) return
+    if (!current || current.status === 'dispatched') return
     setBusy('triage')
     setNote(null)
     try {
       const picked = takeTriageResult(await triageMatter(current))
       const updatedAt = new Date().toISOString()
       getMattersStore().upsert({
+        ...current,
+        callError: undefined,
         id: current.id,
         title: current.title,
         description: current.description,
@@ -95,7 +94,6 @@ export function MatterDetail({ matterId }: { matterId: string }): JSX.Element {
         updatedAt,
       })
       setJob(null)
-      setContractorId('')
     } catch (err) {
       setNote(errorText(err))
     } finally {
@@ -105,24 +103,26 @@ export function MatterDetail({ matterId }: { matterId: string }): JSX.Element {
 
   async function onDispatch() {
     const current = getMattersStore().get(matterId)
-    if (!current?.brief || current.status !== 'triaged') return
+    if (!current?.brief || (current.status !== 'triaged' && !(current.status === 'dispatched' && job?.status === 'failed'))) return
     setBusy('dispatch')
     setNote(null)
     try {
-      const next = await simulateDispatch(current, current.brief, contractorId || undefined)
+      const next = await simulateDispatch(current, current.brief)
       if (next.status === 'failed') {
         setJob(next)
+        getMattersStore().upsert({ ...current, callError: next.error || 'Call request failed', updatedAt: new Date().toISOString() })
         return
       }
       const sentAt = new Date().toISOString()
       getMattersStore().upsert({
         ...current,
         status: 'dispatched',
+        callError: undefined,
         dispatch: {
           status: 'simulated',
           channel: 'dashboard',
           sentAt,
-          contractorName: current.brief.contractorName,
+          contractorName: next.contractorName ?? current.brief.contractorName,
         },
         updatedAt: sentAt,
       })
@@ -162,7 +162,7 @@ export function MatterDetail({ matterId }: { matterId: string }): JSX.Element {
       ? { text: 'Dispatched', error: undefined }
       : null
   const contractor = visibleJob?.contractorName ?? matter.dispatch?.contractorName
-  const canDispatch = matter.status === 'triaged' && Boolean(matter.brief)
+  const canDispatch = Boolean(matter.brief) && (matter.status === 'triaged' || (matter.status === 'dispatched' && job?.status === 'failed'))
 
   return (
     <section className="card matter-detail">
@@ -182,7 +182,7 @@ export function MatterDetail({ matterId }: { matterId: string }): JSX.Element {
       <p className="matter-facts">
         <span className="meta">{place(matter)}</span>
         <span className={`chip chip-${matter.triage?.priority ?? 'none'}`}>{matter.triage?.priority ?? '—'}</span>
-        <span className="meta">{matter.triage?.trade ?? '—'}</span>
+        <span className="meta">{matter.triage?.trade ?? matter.issueType ?? '—'}</span>
         <span className={`chip chip-status-${matter.status}`}>{matter.status}</span>
       </p>
       {matter.triage ? <p>{matter.triage.summary}</p> : null}
@@ -215,8 +215,7 @@ export function MatterDetail({ matterId }: { matterId: string }): JSX.Element {
 
       {matter.brief ? (
         <section>
-          <h2>Contractor brief</h2>
-          <p>{matter.brief.contractorName}</p>
+          <h2>Call brief</h2>
           <p>{matter.brief.locationText}</p>
           <p className="brief-body">{matter.brief.body}</p>
           <p>
@@ -238,12 +237,10 @@ export function MatterDetail({ matterId }: { matterId: string }): JSX.Element {
         </section>
       ) : null}
 
-      {canDispatch ? (
-        <ContractorPicker trade={matter.triage?.trade} value={contractorId} onChange={setContractorId} />
-      ) : null}
+      {canDispatch ? <p className="meta">Calls are sent to your configured personal phone via Grok Bot.</p> : null}
 
       <div className="actions">
-        <button type="button" onClick={() => void onTriage()} disabled={busy !== null}>
+        <button type="button" onClick={() => void onTriage()} disabled={busy !== null || matter.status === 'dispatched'}>
           {busy === 'triage' ? 'Triaging…' : 'Triage'}
         </button>
         <button
@@ -252,7 +249,7 @@ export function MatterDetail({ matterId }: { matterId: string }): JSX.Element {
           disabled={busy !== null || !canDispatch}
           title={canDispatch ? undefined : 'Dispatch is available after triage'}
         >
-          {busy === 'dispatch' ? 'Dispatching…' : 'Dispatch'}
+          {busy === 'dispatch' ? 'Requesting call…' : 'Call Contractor'}
         </button>
       </div>
       {note ? (
