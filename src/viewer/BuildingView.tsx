@@ -6,22 +6,23 @@ import * as THREE from 'three'
 import type { Floor } from '../types'
 import { floorTitle, makeRoomSlab, roomFill, wallBoxes, warehouseRacks, type Bounds } from './geometry'
 import { OfficePark } from './OfficePark'
+import { disposeMaterials, storeyMaterials } from './surfaces'
 
 const STOREY_HEIGHT = 2.62
 const WALL_HEIGHT = 1.05
-const BRICK = '#c17a58'
-const BRICK_DARK = '#8d4e3a'
-const WINDOW = '#1a212b'
+const WINDOW = '#1a9aaa'
+const TRIM = '#f4f7f8'
 
 type BuildingViewProps = {
   floors: Floor[]
   bounds: Bounds
   highlightId: string | null
+  showDressing: boolean
   onHover: (floorId: string | null) => void
   onSelect: (floorId: string) => void
 }
 
-export function BuildingView({ floors, bounds, highlightId, onHover, onSelect }: BuildingViewProps) {
+export function BuildingView({ floors, bounds, highlightId, showDressing, onHover, onSelect }: BuildingViewProps) {
   const highlightIndex = floors.findIndex((floor) => floor.id === highlightId)
   return (
     <>
@@ -30,7 +31,7 @@ export function BuildingView({ floors, bounds, highlightId, onHover, onSelect }:
       <ambientLight intensity={0.38} />
       <KeyLight cx={bounds.cx} front={bounds.maxZ} />
       <directionalLight position={[bounds.cx - 12, 10, bounds.maxZ + 6]} intensity={0.28} color="#fff4e5" />
-      <OfficePark bounds={bounds} />
+      <OfficePark bounds={bounds} showDressing={showDressing} />
       <FitCamera />
       <mesh position={[bounds.cx, 0.05, bounds.cz]} receiveShadow>
         <boxGeometry args={[bounds.width + 0.9, 0.1, bounds.depth + 0.9]} />
@@ -299,24 +300,18 @@ function Storey({
   return (
     <group position={[bounds.cx, floor.elevation, bounds.cz]}>
       <group ref={shell}>
-        <mesh position={[0, STOREY_HEIGHT / 2, 0]} castShadow receiveShadow raycast={() => null}>
-          <boxGeometry args={[bounds.width, STOREY_HEIGHT, bounds.depth]} />
-          <meshStandardMaterial color={role === 'hot' ? '#d49272' : BRICK} roughness={0.92} />
-        </mesh>
-        <mesh position={[0, 0.16, 0]} raycast={() => null}>
-          <boxGeometry args={[bounds.width + 0.06, 0.32, bounds.depth + 0.06]} />
-          <meshStandardMaterial color={BRICK_DARK} roughness={0.9} />
-        </mesh>
+        <StoreyShell width={bounds.width} depth={bounds.depth} ground={index === 0} hot={role === 'hot'} />
         <mesh position={[0, STOREY_HEIGHT, 0]} raycast={() => null}>
-          <boxGeometry args={[bounds.width + (isTop ? 0.55 : 0.08), isTop ? 0.18 : 0.08, bounds.depth + (isTop ? 0.55 : 0.08)]} />
-          <meshStandardMaterial color={isTop ? '#6a7076' : '#a8644c'} roughness={0.8} />
+          <boxGeometry args={[bounds.width + 0.22, 0.16, bounds.depth + 0.22]} />
+          <meshStandardMaterial color={TRIM} roughness={0.45} />
         </mesh>
         {isTop && <Parapet width={bounds.width} depth={bounds.depth} />}
         <lineSegments position={[0, STOREY_HEIGHT / 2, 0]} geometry={edges} raycast={() => null}>
-          <lineBasicMaterial color="#6e3b2e" />
+          <lineBasicMaterial color="#8e969c" />
         </lineSegments>
-        <WindowBands width={bounds.width} depth={bounds.depth} sparse={index === 0} hot={role === 'hot'} />
+        <WindowBands width={bounds.width} depth={bounds.depth} ground={index === 0} hot={role === 'hot'} />
         {index === 0 && <DockDoor floor={floor} bounds={bounds} />}
+        {index === 0 && <Entrance depth={bounds.depth} />}
       </group>
       <group ref={interior}>
         <FloorInterior floor={floor} bounds={bounds} />
@@ -393,19 +388,19 @@ function Parapet({ width, depth }: { width: number; depth: number }) {
     <group raycast={() => null}>
       <mesh position={[0, y, depth / 2]} raycast={() => null}>
         <boxGeometry args={[width + 0.5, 0.55, t]} />
-        <meshStandardMaterial color={BRICK} roughness={0.9} />
+        <meshStandardMaterial color="#d5dadd" roughness={0.72} />
       </mesh>
       <mesh position={[0, y, -depth / 2]} raycast={() => null}>
         <boxGeometry args={[width + 0.5, 0.55, t]} />
-        <meshStandardMaterial color={BRICK} roughness={0.9} />
+        <meshStandardMaterial color="#d5dadd" roughness={0.72} />
       </mesh>
       <mesh position={[width / 2, y, 0]} raycast={() => null}>
         <boxGeometry args={[t, 0.55, depth]} />
-        <meshStandardMaterial color={BRICK} roughness={0.9} />
+        <meshStandardMaterial color="#d5dadd" roughness={0.72} />
       </mesh>
       <mesh position={[-width / 2, y, 0]} raycast={() => null}>
         <boxGeometry args={[t, 0.55, depth]} />
-        <meshStandardMaterial color={BRICK} roughness={0.9} />
+        <meshStandardMaterial color="#d5dadd" roughness={0.72} />
       </mesh>
     </group>
   )
@@ -437,23 +432,59 @@ function DockDoor({ floor, bounds }: { floor: Floor; bounds: Bounds }) {
   )
 }
 
-function WindowBands({ width, depth, sparse, hot }: { width: number; depth: number; sparse: boolean; hot: boolean }) {
-  const y = STOREY_HEIGHT * 0.5
-  const color = hot ? '#8fb4d4' : WINDOW
-  const emissive = hot ? '#c5d7ea' : '#000000'
-  if (sparse) {
+function StoreyShell({ width, depth, ground, hot }: { width: number; depth: number; ground: boolean; hot: boolean }) {
+  const geometry = useMemo(() => new THREE.BoxGeometry(width, STOREY_HEIGHT, depth), [depth, width])
+  const materials = useMemo(() => storeyMaterials(width, STOREY_HEIGHT, depth, ground), [depth, ground, width])
+  useEffect(
+    () => () => {
+      geometry.dispose()
+      disposeMaterials(materials)
+    },
+    [geometry, materials],
+  )
+  useEffect(() => {
+    for (const material of materials) {
+      material.emissive = new THREE.Color(hot ? '#d7e4ee' : '#000000')
+      material.emissiveIntensity = hot ? 0.22 : 0
+    }
+  }, [hot, materials])
+  return <mesh geometry={geometry} material={materials} position={[0, STOREY_HEIGHT / 2, 0]} castShadow receiveShadow raycast={() => null} />
+}
+
+function Entrance({ depth }: { depth: number }) {
+  return (
+    <group position={[0, 1.15, depth / 2 + 0.07]} raycast={() => null}>
+      <mesh position={[0, 0, -0.04]} raycast={() => null}>
+        <boxGeometry args={[1.85, 2.35, 0.06]} />
+        <meshStandardMaterial color={TRIM} roughness={0.4} />
+      </mesh>
+      {[-0.42, 0.42].map((x) => (
+        <mesh key={x} position={[x, 0, 0.02]} raycast={() => null}>
+          <boxGeometry args={[0.7, 2.1, 0.04]} />
+          <meshStandardMaterial color={WINDOW} metalness={0.72} roughness={0.08} />
+        </mesh>
+      ))}
+    </group>
+  )
+}
+
+function WindowBands({ width, depth, ground, hot }: { width: number; depth: number; ground: boolean; hot: boolean }) {
+  const y = ground ? STOREY_HEIGHT * 0.46 : STOREY_HEIGHT * 0.4
+  const color = hot ? '#b7ecec' : WINDOW
+  if (ground) {
     return (
       <group raycast={() => null}>
-        <FaceWindows span={width * 0.55} along="x" offset={depth / 2 + 0.04} sign={1} y={y} count={3} color={color} emissive={emissive} />
+        <FaceWindows span={width * 0.34} along="x" offset={depth / 2 + 0.05} sign={1} y={y} count={2} shift={-width * 0.28} color={color} />
+        <FaceWindows span={width * 0.34} along="x" offset={depth / 2 + 0.05} sign={1} y={y} count={2} shift={width * 0.28} color={color} />
       </group>
     )
   }
   return (
     <group raycast={() => null}>
-      <FaceWindows span={width} along="x" offset={depth / 2 + 0.04} sign={1} y={y} color={color} emissive={emissive} />
-      <FaceWindows span={width} along="x" offset={depth / 2 + 0.04} sign={-1} y={y} color={color} emissive={emissive} />
-      <FaceWindows span={depth} along="z" offset={width / 2 + 0.04} sign={1} y={y} color={color} emissive={emissive} />
-      <FaceWindows span={depth} along="z" offset={width / 2 + 0.04} sign={-1} y={y} color={color} emissive={emissive} />
+      <FaceWindows span={width} along="x" offset={depth / 2 + 0.05} sign={1} y={y} color={color} />
+      <FaceWindows span={width} along="x" offset={depth / 2 + 0.05} sign={-1} y={y} color={color} />
+      <FaceWindows span={depth} along="z" offset={width / 2 + 0.05} sign={1} y={y} color={color} />
+      <FaceWindows span={depth} along="z" offset={width / 2 + 0.05} sign={-1} y={y} color={color} />
     </group>
   )
 }
@@ -465,8 +496,8 @@ function FaceWindows({
   sign,
   y,
   count: countProp,
+  shift = 0,
   color,
-  emissive,
 }: {
   span: number
   along: 'x' | 'z'
@@ -474,27 +505,37 @@ function FaceWindows({
   sign: 1 | -1
   y: number
   count?: number
+  shift?: number
   color: string
-  emissive: string
 }) {
-  const count = countProp ?? (span > 16 ? 6 : 4)
-  const margin = span * 0.08
+  const count = countProp ?? (span > 16 ? 4 : 3)
+  const margin = span * 0.1
   const usable = span - margin * 2
-  const gap = 0.16
+  const gap = 0.55
   const segment = (usable - gap * (count - 1)) / count
-  const start = -usable / 2 + segment / 2
+  const start = -usable / 2 + segment / 2 + shift
+  const paneH = span > 10 ? 1.12 : 1.0
   return (
     <>
       {Array.from({ length: count }, (_, index) => {
-        const alongPosition = start + index * (segment + gap)
-        const position: [number, number, number] =
-          along === 'x' ? [alongPosition, y, sign * offset] : [sign * offset, y, alongPosition]
-        const args: [number, number, number] = along === 'x' ? [segment, 0.78, 0.08] : [0.08, 0.78, segment]
+        const at = start + index * (segment + gap)
+        const frame: [number, number, number] = along === 'x' ? [at, y, sign * offset] : [sign * offset, y, at]
+        const frameSize: [number, number, number] = along === 'x' ? [segment, paneH, 0.08] : [0.08, paneH, segment]
+        const glassSize: [number, number, number] = along === 'x' ? [segment - 0.16, paneH - 0.16, 0.05] : [0.05, paneH - 0.16, segment - 0.16]
+        const glassShift = sign * 0.03
+        const glass: [number, number, number] =
+          along === 'x' ? [frame[0], frame[1], frame[2] + glassShift] : [frame[0] + glassShift, frame[1], frame[2]]
         return (
-          <mesh key={index} position={position} raycast={() => null}>
-            <boxGeometry args={args} />
-            <meshStandardMaterial color={color} emissive={emissive} emissiveIntensity={emissive === '#000000' ? 0 : 0.45} roughness={0.18} metalness={0.55} />
-          </mesh>
+          <group key={index} raycast={() => null}>
+            <mesh position={frame} raycast={() => null}>
+              <boxGeometry args={frameSize} />
+              <meshStandardMaterial color={TRIM} roughness={0.35} />
+            </mesh>
+            <mesh position={glass} raycast={() => null}>
+              <boxGeometry args={glassSize} />
+              <meshStandardMaterial color={color} metalness={0.78} roughness={0.08} />
+            </mesh>
+          </group>
         )
       })}
     </>

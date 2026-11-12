@@ -1,22 +1,24 @@
-import { Suspense, useMemo } from 'react'
+import { Suspense, useEffect, useMemo, useRef, type ReactNode } from 'react'
 import { Text, useGLTF } from '@react-three/drei'
+import { useFrame } from '@react-three/fiber'
 import * as THREE from 'three'
 import type { Bounds } from './geometry'
+import { asphaltMaterial } from './surfaces'
 
 const CARS = ['/models/sedan.glb', '/models/taxi.glb', '/models/suv.glb', '/models/hatchback-sports.glb'] as const
 const FONT = '/fonts/Tinos-Bold.ttf'
 
 for (const url of CARS) useGLTF.preload(url)
 
-export function OfficePark({ bounds }: { bounds: Bounds }) {
+export function OfficePark({ bounds, showDressing }: { bounds: Bounds; showDressing: boolean }) {
   return (
     <Suspense fallback={null}>
-      <Park bounds={bounds} />
+      <Park bounds={bounds} showDressing={showDressing} />
     </Suspense>
   )
 }
 
-function Park({ bounds }: { bounds: Bounds }) {
+function Park({ bounds, showDressing }: { bounds: Bounds; showDressing: boolean }) {
   const front = bounds.maxZ
   const near = front + 2.5
   const far = near + 12
@@ -49,21 +51,19 @@ function Park({ bounds }: { bounds: Bounds }) {
         <boxGeometry args={[lotWidth, 0.12, 0.28]} />
         <meshStandardMaterial color="#9a958c" roughness={0.9} />
       </mesh>
-      <mesh rotation={[-Math.PI / 2, 0, 0]} position={[bounds.cx, 0.03, (near + far) / 2]} raycast={() => null}>
-        <planeGeometry args={[lotWidth, far - near]} />
-        <meshStandardMaterial color="#5e646c" roughness={0.96} />
-      </mesh>
+      <Asphalt width={lotWidth} depth={far - near} position={[bounds.cx, 0.03, (near + far) / 2]} />
       <BayLines near={near} />
       {spots.map((spot) => (
         <Car key={`${spot.url}-${spot.x}-${spot.z}`} url={spot.url} position={[spot.x, 0.32, spot.z]} />
       ))}
       <DockApron />
-      <Canopy cx={bounds.cx} front={front} />
-      <Sign cx={bounds.cx} front={front} />
-      <Tree position={[-1.2, 0, front + 0.2]} scale={1.25} />
-      <Tree position={[23.2, 0, front + 0.2]} scale={1.15} />
-      <Tree position={[-1.6, 0, near + 6]} scale={0.9} />
-      <Tree position={[23.4, 0, near + 6.5]} />
+      <Hedge cx={bounds.cx} front={front} width={bounds.width} />
+      <Dressing show={showDressing}>
+        <Canopy cx={bounds.cx} front={front} />
+        <Sign cx={bounds.cx} front={front} />
+      </Dressing>
+      <Tree position={[-1.2, 0, front + 0.4]} scale={1.35} />
+      <Tree position={[23.4, 0, front + 1.2]} scale={1.7} />
     </group>
   )
 }
@@ -104,36 +104,94 @@ function DockApron() {
   )
 }
 
-function Canopy({ cx, front }: { cx: number; front: number }) {
+function Asphalt({ width, depth, position }: { width: number; depth: number; position: [number, number, number] }) {
+  const material = useMemo(() => asphaltMaterial(width, depth), [depth, width])
   return (
-    <group position={[cx, 0, front]} raycast={() => null}>
-      <mesh position={[-1.6, 1.15, 1.05]} raycast={() => null}>
-        <boxGeometry args={[0.08, 2.3, 0.08]} />
-        <meshStandardMaterial color="#d5d8dc" metalness={0.6} roughness={0.3} />
+    <mesh rotation={[-Math.PI / 2, 0, 0]} position={position} raycast={() => null} material={material}>
+      <planeGeometry args={[width, depth]} />
+    </mesh>
+  )
+}
+
+function Hedge({ cx, front, width }: { cx: number; front: number; width: number }) {
+  const span = Math.max(3, width / 2 - 2.4)
+  return (
+    <group raycast={() => null}>
+      <mesh position={[cx - width / 4 - 0.4, 0.42, front + 0.55]} raycast={() => null}>
+        <boxGeometry args={[span, 0.85, 0.42]} />
+        <meshStandardMaterial color="#2c6a3c" roughness={0.9} />
       </mesh>
-      <mesh position={[1.6, 1.15, 1.05]} raycast={() => null}>
-        <boxGeometry args={[0.08, 2.3, 0.08]} />
-        <meshStandardMaterial color="#d5d8dc" metalness={0.6} roughness={0.3} />
-      </mesh>
-      <mesh position={[0, 2.35, 1.15]} raycast={() => null}>
-        <boxGeometry args={[4.4, 0.08, 2.4]} />
-        <meshStandardMaterial color="#b7dbe6" transparent opacity={0.45} roughness={0.05} metalness={0.15} depthWrite={false} />
+      <mesh position={[cx + width / 4 + 0.4, 0.42, front + 0.55]} raycast={() => null}>
+        <boxGeometry args={[span, 0.85, 0.42]} />
+        <meshStandardMaterial color="#2c6a3c" roughness={0.9} />
       </mesh>
     </group>
   )
 }
 
+function Dressing({ show, children }: { show: boolean; children: ReactNode }) {
+  const group = useRef<THREE.Group>(null)
+  const shown = useRef(show)
+  shown.current = show
+  useEffect(() => {
+    const root = group.current
+    if (!root || show) return
+    root.traverse((child) => {
+      const mesh = child as THREE.Mesh
+      if (!mesh.isMesh) return
+      const materials = Array.isArray(mesh.material) ? mesh.material : [mesh.material]
+      for (const entry of materials) {
+        if (!entry || !('opacity' in entry)) continue
+        const material = entry as THREE.MeshStandardMaterial
+        material.opacity = 0
+        material.transparent = true
+        material.depthWrite = false
+      }
+    })
+  }, [show])
+  useFrame((_, delta) => {
+    const root = group.current
+    if (!root || !shown.current) return
+    root.traverse((child) => {
+      const mesh = child as THREE.Mesh
+      if (!mesh.isMesh) return
+      const materials = Array.isArray(mesh.material) ? mesh.material : [mesh.material]
+      for (const entry of materials) {
+        if (!entry || !('opacity' in entry)) continue
+        const material = entry as THREE.MeshStandardMaterial
+        material.opacity = THREE.MathUtils.damp(material.opacity, 1, 12, delta)
+        material.transparent = material.opacity < 0.98
+        material.depthWrite = material.opacity > 0.5
+      }
+    })
+  })
+  return (
+    <group ref={group} visible={show} raycast={() => null}>
+      {children}
+    </group>
+  )
+}
+
+function Canopy({ cx, front }: { cx: number; front: number }) {
+  return (
+    <mesh position={[cx, 2.45, front + 0.85]} raycast={() => null}>
+      <boxGeometry args={[3.6, 0.1, 1.5]} />
+      <meshStandardMaterial color="#e7ebed" roughness={0.45} />
+    </mesh>
+  )
+}
+
 function Sign({ cx, front }: { cx: number; front: number }) {
   return (
-    <group position={[cx, 4.85, front + 0.16]} raycast={() => null}>
+    <group position={[cx, 8.05, front + 0.18]} raycast={() => null}>
       <mesh raycast={() => null}>
-        <boxGeometry args={[8.4, 1.85, 0.1]} />
-        <meshStandardMaterial color="#1c3d5a" roughness={0.55} />
+        <boxGeometry args={[8.2, 1.15, 0.08]} />
+        <meshStandardMaterial color="#1c3d5a" roughness={0.5} />
       </mesh>
       <Text
         font={FONT}
         position={[0, 0.32, 0.08]}
-        fontSize={0.52}
+        fontSize={0.38}
         color="#f6f1e6"
         anchorX="center"
         anchorY="middle"
@@ -143,8 +201,8 @@ function Sign({ cx, front }: { cx: number; front: number }) {
       </Text>
       <Text
         font={FONT}
-        position={[0, -0.38, 0.08]}
-        fontSize={0.22}
+        position={[0, -0.28, 0.08]}
+        fontSize={0.16}
         color="#f3e6c8"
         anchorX="center"
         anchorY="middle"

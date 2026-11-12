@@ -50,7 +50,14 @@ export function PlanViewer({ plan, matters, focusPinId, onPinClick, onDropReques
             gl.toneMappingExposure = 1.08
           }}
         >
-          <BuildingView floors={floors} bounds={bounds} highlightId={selected ? null : hoveredId} onHover={setHoveredId} onSelect={openFloor} />
+          <BuildingView
+            floors={floors}
+            bounds={bounds}
+            highlightId={selected ? null : hoveredId}
+            showDressing={!selected && hoveredId == null}
+            onHover={setHoveredId}
+            onSelect={openFloor}
+          />
         </Canvas>
       </div>
       {selected && (
