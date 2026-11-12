@@ -249,7 +249,7 @@ export function MatterDetail({ matterId }: { matterId: string }): JSX.Element {
           disabled={busy !== null || !canDispatch}
           title={canDispatch ? undefined : 'Dispatch is available after triage'}
         >
-          {busy === 'dispatch' ? 'Requesting call…' : 'Call my phone'}
+          {busy === 'dispatch' ? 'Requesting call…' : 'Call Contractor'}
         </button>
       </div>
       {note ? (
