@@ -4,11 +4,14 @@ import { useFrame, useThree } from '@react-three/fiber'
 import type { OrbitControls as OrbitControlsImpl } from 'three-stdlib'
 import * as THREE from 'three'
 import type { Floor } from '../types'
-import { floorTitle, makeRoomSlab, roomFill, wallBoxes, type Bounds } from './geometry'
+import { floorTitle, makeRoomSlab, roomFill, wallBoxes, warehouseRacks, type Bounds } from './geometry'
+import { OfficePark } from './OfficePark'
 
 const STOREY_HEIGHT = 2.62
 const WALL_HEIGHT = 1.05
-const WINDOW = '#2c343c'
+const BRICK = '#c17a58'
+const BRICK_DARK = '#8d4e3a'
+const WINDOW = '#1a212b'
 
 type BuildingViewProps = {
   floors: Floor[]
@@ -22,15 +25,13 @@ export function BuildingView({ floors, bounds, highlightId, onHover, onSelect }:
   const highlightIndex = floors.findIndex((floor) => floor.id === highlightId)
   return (
     <>
-      <color attach="background" args={['#e7ebef']} />
-      <hemisphereLight args={['#f8fafc', '#c5ccd4', 0.55]} />
-      <ambientLight intensity={0.35} />
-      <KeyLight cx={bounds.cx} cz={bounds.cz} />
-      <directionalLight position={[bounds.cx - 10, 8, bounds.cz - 6]} intensity={0.35} color="#f4f7fb" />
-      <mesh rotation={[-Math.PI / 2, 0, 0]} position={[bounds.cx, -0.04, bounds.cz]} receiveShadow>
-        <planeGeometry args={[80, 80]} />
-        <meshStandardMaterial color="#e6eaee" roughness={1} />
-      </mesh>
+      <color attach="background" args={['#d5e3ee']} />
+      <hemisphereLight args={['#f4f8fc', '#8d9a72', 0.55]} />
+      <ambientLight intensity={0.38} />
+      <KeyLight cx={bounds.cx} front={bounds.maxZ} />
+      <directionalLight position={[bounds.cx - 12, 10, bounds.maxZ + 6]} intensity={0.28} color="#fff4e5" />
+      <OfficePark bounds={bounds} />
+      <FitCamera />
       <mesh position={[bounds.cx, 0.05, bounds.cz]} receiveShadow>
         <boxGeometry args={[bounds.width + 0.9, 0.1, bounds.depth + 0.9]} />
         <meshStandardMaterial color="#c8ced6" roughness={0.92} />
@@ -67,35 +68,45 @@ function roleFor(index: number, highlightIndex: number): 'idle' | 'hot' | 'above
   return index > highlightIndex ? 'above' : 'below'
 }
 
-function KeyLight({ cx, cz }: { cx: number; cz: number }) {
+function KeyLight({ cx, front }: { cx: number; front: number }) {
   const light = useRef<THREE.DirectionalLight>(null)
   const scene = useThree((state) => state.scene)
   useLayoutEffect(() => {
     const current = light.current
     if (!current) return
-    current.target.position.set(cx, 4, cz)
+    current.target.position.set(cx, 4, front - 6)
     scene.add(current.target)
     return () => {
       scene.remove(current.target)
     }
-  }, [cx, cz, scene])
+  }, [cx, front, scene])
   return (
     <directionalLight
       ref={light}
-      position={[cx + 14, 22, cz + 10]}
-      intensity={1.55}
+      position={[cx - 8, 18, front + 24]}
+      intensity={1.65}
       castShadow
       shadow-mapSize={[1024, 1024]}
       shadow-bias={-0.0006}
-      shadow-normalBias={0.045}
+      shadow-normalBias={0.04}
       shadow-camera-near={1}
-      shadow-camera-far={70}
-      shadow-camera-left={-18}
-      shadow-camera-right={18}
-      shadow-camera-top={18}
-      shadow-camera-bottom={-18}
+      shadow-camera-far={90}
+      shadow-camera-left={-28}
+      shadow-camera-right={28}
+      shadow-camera-top={24}
+      shadow-camera-bottom={-24}
     />
   )
+}
+
+function FitCamera() {
+  const camera = useThree((state) => state.camera) as THREE.PerspectiveCamera
+  const width = useThree((state) => state.size.width)
+  useLayoutEffect(() => {
+    camera.fov = width < 520 ? 50 : 36
+    camera.updateProjectionMatrix()
+  }, [camera, width])
+  return null
 }
 
 function Controls({ cx, cz }: { cx: number; cz: number }) {
@@ -103,7 +114,7 @@ function Controls({ cx, cz }: { cx: number; cz: number }) {
   useLayoutEffect(() => {
     const current = controls.current
     if (!current) return
-    current.target.set(cx, 3.2, cz)
+    current.target.set(cx, 4, cz)
     current.mouseButtons.LEFT = undefined
     current.mouseButtons.MIDDLE = THREE.MOUSE.DOLLY
     current.mouseButtons.RIGHT = THREE.MOUSE.ROTATE
@@ -120,7 +131,7 @@ function Controls({ cx, cz }: { cx: number; cz: number }) {
       maxPolarAngle={Math.PI / 2.04}
       minPolarAngle={0.2}
       minDistance={8}
-      maxDistance={46}
+      maxDistance={90}
     />
   )
 }
@@ -290,16 +301,22 @@ function Storey({
       <group ref={shell}>
         <mesh position={[0, STOREY_HEIGHT / 2, 0]} castShadow receiveShadow raycast={() => null}>
           <boxGeometry args={[bounds.width, STOREY_HEIGHT, bounds.depth]} />
-          <meshStandardMaterial color="#f4f5f6" roughness={0.86} metalness={0} />
+          <meshStandardMaterial color={role === 'hot' ? '#d49272' : BRICK} roughness={0.92} />
+        </mesh>
+        <mesh position={[0, 0.16, 0]} raycast={() => null}>
+          <boxGeometry args={[bounds.width + 0.06, 0.32, bounds.depth + 0.06]} />
+          <meshStandardMaterial color={BRICK_DARK} roughness={0.9} />
         </mesh>
         <mesh position={[0, STOREY_HEIGHT, 0]} raycast={() => null}>
-          <boxGeometry args={[bounds.width + (isTop ? 0.42 : 0.16), 0.1, bounds.depth + (isTop ? 0.42 : 0.16)]} />
-          <meshStandardMaterial color={isTop ? '#fbfbfb' : '#d5dae0'} roughness={0.74} />
+          <boxGeometry args={[bounds.width + (isTop ? 0.55 : 0.08), isTop ? 0.18 : 0.08, bounds.depth + (isTop ? 0.55 : 0.08)]} />
+          <meshStandardMaterial color={isTop ? '#6a7076' : '#a8644c'} roughness={0.8} />
         </mesh>
+        {isTop && <Parapet width={bounds.width} depth={bounds.depth} />}
         <lineSegments position={[0, STOREY_HEIGHT / 2, 0]} geometry={edges} raycast={() => null}>
-          <lineBasicMaterial color="#b7bec6" />
+          <lineBasicMaterial color="#6e3b2e" />
         </lineSegments>
-        <WindowBands width={bounds.width} depth={bounds.depth} />
+        <WindowBands width={bounds.width} depth={bounds.depth} sparse={index === 0} hot={role === 'hot'} />
+        {index === 0 && <DockDoor floor={floor} bounds={bounds} />}
       </group>
       <group ref={interior}>
         <FloorInterior floor={floor} bounds={bounds} />
@@ -343,6 +360,16 @@ function FloorInterior({ floor, bounds }: { floor: Floor; bounds: Bounds }) {
           <meshStandardMaterial color={slab.color} roughness={0.84} side={THREE.DoubleSide} />
         </mesh>
       ))}
+      {warehouseRacks(floor.rooms).map((rack) => (
+        <mesh
+          key={`rack-${rack.x}-${rack.z}`}
+          position={[rack.x + rack.w / 2 - bounds.cx, 0.8, rack.z + rack.d / 2 - bounds.cz]}
+          raycast={() => null}
+        >
+          <boxGeometry args={[rack.w, 1.6, rack.d]} />
+          <meshStandardMaterial color="#8d7356" roughness={0.8} />
+        </mesh>
+      ))}
       {walls.map((wall) => (
         <mesh
           key={`${wall.x.toFixed(2)}:${wall.z.toFixed(2)}:${wall.rotationY.toFixed(3)}`}
@@ -359,14 +386,74 @@ function FloorInterior({ floor, bounds }: { floor: Floor; bounds: Bounds }) {
   )
 }
 
-function WindowBands({ width, depth }: { width: number; depth: number }) {
-  const y = STOREY_HEIGHT * 0.48
+function Parapet({ width, depth }: { width: number; depth: number }) {
+  const y = STOREY_HEIGHT + 0.32
+  const t = 0.22
   return (
     <group raycast={() => null}>
-      <FaceWindows span={width} along="x" offset={depth / 2 + 0.035} sign={1} y={y} />
-      <FaceWindows span={width} along="x" offset={depth / 2 + 0.035} sign={-1} y={y} />
-      <FaceWindows span={depth} along="z" offset={width / 2 + 0.035} sign={1} y={y} />
-      <FaceWindows span={depth} along="z" offset={width / 2 + 0.035} sign={-1} y={y} />
+      <mesh position={[0, y, depth / 2]} raycast={() => null}>
+        <boxGeometry args={[width + 0.5, 0.55, t]} />
+        <meshStandardMaterial color={BRICK} roughness={0.9} />
+      </mesh>
+      <mesh position={[0, y, -depth / 2]} raycast={() => null}>
+        <boxGeometry args={[width + 0.5, 0.55, t]} />
+        <meshStandardMaterial color={BRICK} roughness={0.9} />
+      </mesh>
+      <mesh position={[width / 2, y, 0]} raycast={() => null}>
+        <boxGeometry args={[t, 0.55, depth]} />
+        <meshStandardMaterial color={BRICK} roughness={0.9} />
+      </mesh>
+      <mesh position={[-width / 2, y, 0]} raycast={() => null}>
+        <boxGeometry args={[t, 0.55, depth]} />
+        <meshStandardMaterial color={BRICK} roughness={0.9} />
+      </mesh>
+    </group>
+  )
+}
+
+function DockDoor({ floor, bounds }: { floor: Floor; bounds: Bounds }) {
+  const dock = floor.rooms.find((room) => room.id === 'loading_dock')
+  if (!dock) return null
+  let minZ = Infinity
+  let maxZ = -Infinity
+  for (const [, z] of dock.points) {
+    minZ = Math.min(minZ, z)
+    maxZ = Math.max(maxZ, z)
+  }
+  const z = (minZ + maxZ) / 2 - bounds.cz
+  return (
+    <group position={[-bounds.width / 2 - 0.06, 1.25, z]} raycast={() => null}>
+      <mesh raycast={() => null}>
+        <boxGeometry args={[0.12, 2.5, 4.4]} />
+        <meshStandardMaterial color="#4e555c" roughness={0.55} metalness={0.35} />
+      </mesh>
+      {Array.from({ length: 6 }, (_, index) => (
+        <mesh key={index} position={[0.08, -1 + index * 0.36, 0]} raycast={() => null}>
+          <boxGeometry args={[0.04, 0.08, 4.1]} />
+          <meshStandardMaterial color="#2c3136" metalness={0.4} roughness={0.4} />
+        </mesh>
+      ))}
+    </group>
+  )
+}
+
+function WindowBands({ width, depth, sparse, hot }: { width: number; depth: number; sparse: boolean; hot: boolean }) {
+  const y = STOREY_HEIGHT * 0.5
+  const color = hot ? '#8fb4d4' : WINDOW
+  const emissive = hot ? '#c5d7ea' : '#000000'
+  if (sparse) {
+    return (
+      <group raycast={() => null}>
+        <FaceWindows span={width * 0.55} along="x" offset={depth / 2 + 0.04} sign={1} y={y} count={3} color={color} emissive={emissive} />
+      </group>
+    )
+  }
+  return (
+    <group raycast={() => null}>
+      <FaceWindows span={width} along="x" offset={depth / 2 + 0.04} sign={1} y={y} color={color} emissive={emissive} />
+      <FaceWindows span={width} along="x" offset={depth / 2 + 0.04} sign={-1} y={y} color={color} emissive={emissive} />
+      <FaceWindows span={depth} along="z" offset={width / 2 + 0.04} sign={1} y={y} color={color} emissive={emissive} />
+      <FaceWindows span={depth} along="z" offset={width / 2 + 0.04} sign={-1} y={y} color={color} emissive={emissive} />
     </group>
   )
 }
@@ -377,17 +464,23 @@ function FaceWindows({
   offset,
   sign,
   y,
+  count: countProp,
+  color,
+  emissive,
 }: {
   span: number
   along: 'x' | 'z'
   offset: number
   sign: 1 | -1
   y: number
+  count?: number
+  color: string
+  emissive: string
 }) {
-  const count = span > 12 ? 4 : 3
-  const margin = span * 0.14
+  const count = countProp ?? (span > 16 ? 6 : 4)
+  const margin = span * 0.08
   const usable = span - margin * 2
-  const gap = 0.28
+  const gap = 0.16
   const segment = (usable - gap * (count - 1)) / count
   const start = -usable / 2 + segment / 2
   return (
@@ -396,11 +489,11 @@ function FaceWindows({
         const alongPosition = start + index * (segment + gap)
         const position: [number, number, number] =
           along === 'x' ? [alongPosition, y, sign * offset] : [sign * offset, y, alongPosition]
-        const args: [number, number, number] = along === 'x' ? [segment, 0.62, 0.07] : [0.07, 0.62, segment]
+        const args: [number, number, number] = along === 'x' ? [segment, 0.78, 0.08] : [0.08, 0.78, segment]
         return (
           <mesh key={index} position={position} raycast={() => null}>
             <boxGeometry args={args} />
-            <meshStandardMaterial color={WINDOW} roughness={0.22} metalness={0.48} />
+            <meshStandardMaterial color={color} emissive={emissive} emissiveIntensity={emissive === '#000000' ? 0 : 0.45} roughness={0.18} metalness={0.55} />
           </mesh>
         )
       })}

@@ -6,12 +6,12 @@
     "pin": {
       "id": "pin-faucet",
       "floorId": "L2",
-      "roomId": "kitchen_0",
+      "roomId": "kitchen",
       "roomName": "Kitchen",
       "position": {
-        "x": 11.652,
-        "y": 3.0,
-        "z": 7.144
+        "x": 19,
+        "y": 3,
+        "z": 6.25
       },
       "createdAt": "2026-11-12T09:00:00.000Z"
     },
@@ -36,25 +36,25 @@
   },
   {
     "id": "matter-hinge",
-    "title": "Loose cupboard hinge",
-    "description": "A cupboard door hangs on one loose hinge.",
+    "title": "Broken dock door",
+    "description": "The loading dock roll-up door sticks halfway and will not close.",
     "pin": {
       "id": "pin-hinge",
       "floorId": "L1",
-      "roomId": "bedroom_0",
-      "roomName": "Bedroom",
+      "roomId": "loading_dock",
+      "roomName": "Loading dock",
       "position": {
-        "x": 11.107,
+        "x": 2.4,
         "y": 0,
-        "z": 1.776
+        "z": 6.5
       },
       "createdAt": "2026-11-12T09:05:00.000Z"
     },
     "sources": [
       {
-        "id": "src-hinge-note",
+        "id": "src-dock-note",
         "kind": "note",
-        "text": "The cupboard door hinge is loose.",
+        "text": "The dock door is stuck open a few feet.",
         "createdAt": "2026-11-12T09:05:00.000Z"
       }
     ],
@@ -64,25 +64,25 @@
   },
   {
     "id": "matter-light",
-    "title": "Flickering hallway light",
-    "description": "The hallway light flickers after it is switched on.",
+    "title": "HVAC leak",
+    "description": "The air handler in Suite 301 is dripping onto the floor.",
     "pin": {
-      "id": "pin-light",
-      "floorId": "L1",
-      "roomId": "living_0",
-      "roomName": "Living",
+      "id": "pin-hvac",
+      "floorId": "L3",
+      "roomId": "suite_301",
+      "roomName": "Suite 301 Vance Refrigeration",
       "position": {
-        "x": 7.049,
-        "y": 0,
-        "z": 4.655
+        "x": 3.6,
+        "y": 6,
+        "z": 10.4
       },
       "createdAt": "2026-11-12T09:10:00.000Z"
     },
     "sources": [
       {
-        "id": "src-light-note",
+        "id": "src-hvac-note",
         "kind": "note",
-        "text": "The hallway light flickers when switched on.",
+        "text": "Water is pooling under the suite air handler.",
         "createdAt": "2026-11-12T09:10:00.000Z"
       }
     ],

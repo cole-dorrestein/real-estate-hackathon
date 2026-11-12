@@ -132,16 +132,46 @@ export function wallSegments(rooms: Room[], thickness = 0.24): Segment[] {
 
 export function roomFill(name: string): string {
   const label = name.toLowerCase()
-  if (label.includes('bath') || label.includes('ensuite') || label.includes('wc')) return '#e7eef3'
+  if (label.includes('rest') || label.includes('bath') || label.includes('wc')) return '#e7eef3'
   if (label.includes('kitchen')) return '#f6f1e6'
-  if (label.includes('bed') || label.includes('primary') || label.includes('suite')) return '#f4f5f7'
+  if (label.includes('break')) return '#f3ead7'
+  if (label.includes('dock')) return '#e4ddd2'
+  if (label.includes('warehouse')) return '#ece7df'
+  if (label.includes('reception')) return '#f7f4ee'
+  if (label.includes('bullpen')) return '#f3f0e8'
+  if (label.includes('manager')) return '#efe4d4'
+  if (label.includes('conference')) return '#e6eef3'
+  if (label.includes('account')) return '#f7f1e4'
+  if (label.includes('annex')) return '#f4efe6'
+  if (label.includes('corridor') || label.includes('stair') || label.includes('elevator')) return '#e6e2da'
+  if (label.includes('vacant')) return '#f4f4f2'
+  if (label.includes('suite')) return '#f6f3ee'
+  if (label.includes('bed') || label.includes('primary')) return '#f4f5f7'
   if (label.includes('living') || label.includes('lounge')) return '#f7f6f3'
   if (label.includes('balcony') || label.includes('porch') || label.includes('terrace')) return '#eef2ee'
   return '#f7f7f5'
 }
 
+const FLOOR_NAMES = ['Warehouse', 'Offices', 'Suites']
+
 export function floorTitle(index: number): string {
-  return `Floor ${index + 1}`
+  const name = FLOOR_NAMES[index]
+  return name ? `Floor ${index + 1} · ${name}` : `Floor ${index + 1}`
+}
+
+export function warehouseRacks(rooms: Room[]): { x: number; z: number; w: number; d: number }[] {
+  const room = rooms.find((entry) => entry.id === 'warehouse')
+  if (!room) return []
+  const box = boundsOf(room.points)
+  const racks: { x: number; z: number; w: number; d: number }[] = []
+  const depth = 1.05
+  const length = 3.5
+  for (let z = box.minZ + 1.3; z + depth < box.maxZ - 0.7; z += 2.25) {
+    for (let x = box.minX + 0.8; x + length < box.maxX - 0.5; x += length + 0.75) {
+      racks.push({ x, z, w: length, d: depth })
+    }
+  }
+  return racks
 }
 
 const FLOOR_THREE_NAMES: Record<string, string> = {

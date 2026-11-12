@@ -8,6 +8,7 @@ import {
   polygonCentroid,
   roomFill,
   wallSegments,
+  warehouseRacks,
   type Bounds,
 } from './geometry'
 
@@ -96,6 +97,19 @@ export function FloorPlan({ floor, title, matters, focusPinId, onPinClick, onDro
           </g>
         )
       })}
+      {warehouseRacks(floor.rooms).map((rack) => (
+        <rect
+          key={`rack-${rack.x}-${rack.z}`}
+          x={rack.x}
+          y={rack.z}
+          width={rack.w}
+          height={rack.d}
+          fill="none"
+          stroke="#5c5348"
+          strokeWidth={0.06}
+          pointerEvents="none"
+        />
+      ))}
       <Dimension bounds={bounds} />
       <text x={bounds.minX} y={bounds.maxZ + 0.85} fontSize={0.4} fontWeight={700} fill="#111" letterSpacing={0.08}>
         {title.toUpperCase()}

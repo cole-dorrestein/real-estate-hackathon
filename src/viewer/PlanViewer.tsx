@@ -30,11 +30,10 @@ export function PlanViewer({ plan, matters, focusPinId, onPinClick, onDropReques
 
   const selectedIndex = floors.findIndex((floor) => floor.id === selectedId)
   const selected = selectedIndex >= 0 ? floors[selectedIndex] : null
-  const span = Math.max(bounds.width, bounds.depth)
   const cameraPosition: [number, number, number] = [
-    bounds.cx + span * 1.45,
-    span * 1.05,
-    bounds.cz + span * 1.65,
+    bounds.cx - bounds.width * 0.95,
+    8.4,
+    bounds.maxZ + 30,
   ]
 
   return (
@@ -43,10 +42,10 @@ export function PlanViewer({ plan, matters, focusPinId, onPinClick, onDropReques
         <Canvas
           shadows
           dpr={[1, 1.75]}
-          camera={{ position: cameraPosition, fov: 32, near: 0.1, far: 200 }}
+          camera={{ position: cameraPosition, fov: 36, near: 0.1, far: 240 }}
           gl={{ antialias: true }}
           onCreated={({ camera, gl }) => {
-            camera.lookAt(bounds.cx, 3.2, bounds.cz)
+            camera.lookAt(bounds.cx, 4, bounds.cz)
             gl.toneMapping = THREE.ACESFilmicToneMapping
             gl.toneMappingExposure = 1.08
           }}
