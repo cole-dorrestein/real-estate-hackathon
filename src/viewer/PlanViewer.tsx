@@ -1,69 +1,97 @@
+import { useEffect, useMemo, useRef, useState } from 'react'
 import type { JSX } from 'react'
-import type { PlanViewerProps, Vec2 } from '../types'
+import { Canvas } from '@react-three/fiber'
+import * as THREE from 'three'
+import type { PlanViewerProps } from '../types'
+import { BuildingView } from './BuildingView'
+import { FloorPlan } from './FloorPlan'
+import { floorTitle, floorsForViewer, planBounds } from './geometry'
+import './viewer.css'
 
-function centroid(points: Vec2[]): Vec2 {
-  const total = points.reduce<[number, number]>((sum, point) => [sum[0] + point[0], sum[1] + point[1]], [0, 0])
-  const count = points.length || 1
-  return [total[0] / count, total[1] / count]
-}
+export function PlanViewer({ plan, matters, focusPinId, onPinClick, onDropRequest }: PlanViewerProps): JSX.Element {
+  const floors = useMemo(() => floorsForViewer(plan), [plan])
+  const bounds = useMemo(() => planBounds(floors), [floors])
+  const mattersRef = useRef(matters)
+  mattersRef.current = matters
+  const [selectedId, setSelectedId] = useState<string | null>(() => floorIdForPin(focusPinId, matters))
+  const [hoveredId, setHoveredId] = useState<string | null>(null)
+  const [showHint, setShowHint] = useState(() => floorIdForPin(focusPinId, matters) === null)
 
-export function PlanViewer({
-  plan,
-  matters,
-  focusPinId,
-  onPinClick,
-  onDropRequest,
-}: PlanViewerProps): JSX.Element {
+  function openFloor(floorId: string) {
+    setShowHint(false)
+    setSelectedId(floorId)
+  }
+
+  useEffect(() => {
+    if (!focusPinId) return
+    const floorId = floorIdForPin(focusPinId, mattersRef.current)
+    if (floorId) setSelectedId(floorId)
+  }, [focusPinId])
+
+  const selectedIndex = floors.findIndex((floor) => floor.id === selectedId)
+  const selected = selectedIndex >= 0 ? floors[selectedIndex] : null
+  const span = Math.max(bounds.width, bounds.depth)
+  const cameraPosition: [number, number, number] = [
+    bounds.cx + span * 1.45,
+    span * 1.05,
+    bounds.cz + span * 1.65,
+  ]
+
   return (
-    <section className="card">
-      <h1>Plan</h1>
-      <p className="meta">{plan.source}</p>
-      <p>
-        Focus pin: <strong>{focusPinId ?? 'none'}</strong>
-      </p>
-      {plan.floors.map((floor) => (
-        <div key={floor.id}>
-          <h2>
-            {floor.id} · elevation {floor.elevation} m · {floor.rooms.length} rooms
-          </h2>
-          <ul className="stack-list">
-            {floor.rooms.map((room) => (
-              <li key={`${floor.id}-${room.id}`}>
-                <span>
-                  {room.name} <span className="meta">({room.id})</span>
-                </span>
-                <button
-                  type="button"
-                  onClick={() => {
-                    const [x, z] = centroid(room.points)
-                    onDropRequest?.({
-                      position: { x, y: floor.elevation, z },
-                      floorId: floor.id,
-                      roomId: room.id,
-                      roomName: room.name,
-                    })
-                  }}
-                >
-                  Drop pin
-                </button>
-              </li>
-            ))}
-          </ul>
+    <section className={selected ? 'viewer-shell is-plan' : 'viewer-shell'} aria-label="Building viewer">
+      <div className="viewer-stage" style={{ touchAction: 'none' }}>
+        <Canvas
+          shadows
+          dpr={[1, 1.75]}
+          camera={{ position: cameraPosition, fov: 32, near: 0.1, far: 200 }}
+          gl={{ antialias: true }}
+          onCreated={({ camera, gl }) => {
+            camera.lookAt(bounds.cx, 3.2, bounds.cz)
+            gl.toneMapping = THREE.ACESFilmicToneMapping
+            gl.toneMappingExposure = 1.08
+          }}
+        >
+          <BuildingView floors={floors} bounds={bounds} highlightId={selected ? null : hoveredId} onHover={setHoveredId} onSelect={openFloor} />
+        </Canvas>
+      </div>
+      {selected && (
+        <div className="plan-stage" key={selected.id}>
+          <FloorPlan
+            floor={selected}
+            title={floorTitle(selectedIndex)}
+            matters={matters}
+            focusPinId={focusPinId}
+            onPinClick={onPinClick}
+            onDropRequest={onDropRequest}
+          />
         </div>
-      ))}
-      <h2>Pins</h2>
-      <ul className="stack-list">
-        {matters.map((matter) => (
-          <li key={matter.id}>
-            <span>
-              {matter.title} <span className="meta">({matter.pin.id})</span>
-            </span>
-            <button type="button" onClick={() => onPinClick?.(matter.pin.id)}>
-              Focus
-            </button>
-          </li>
+      )}
+      <div className="viewer-toolbar">
+        {selected && (
+          <button type="button" className="viewer-chip viewer-back" onClick={() => setSelectedId(null)}>
+            Back to building
+          </button>
+        )}
+        {floors.map((floor, index) => (
+          <button
+            key={floor.id}
+            type="button"
+            className={hoveredId === floor.id && !selected ? 'viewer-chip is-hot' : 'viewer-chip'}
+            aria-pressed={selectedId === floor.id}
+            onClick={() => openFloor(floor.id)}
+          >
+            {floorTitle(index)}
+          </button>
         ))}
-      </ul>
+      </div>
+      {!selected && showHint && (
+        <p className="viewer-hint">Drag up and down the building to pick a floor, then release to open it</p>
+      )}
     </section>
   )
+}
+
+function floorIdForPin(focusPinId: string | undefined, matters: PlanViewerProps['matters']): string | null {
+  if (!focusPinId) return null
+  return matters.find((matter) => matter.pin.id === focusPinId)?.pin.floorId ?? null
 }
