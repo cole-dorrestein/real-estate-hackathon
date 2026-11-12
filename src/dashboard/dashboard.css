@@ -1,0 +1,111 @@
+.dashboard,
+.matter-detail {
+  overflow-wrap: anywhere;
+}
+
+.matter-list {
+  list-style: decimal;
+  margin: 0;
+  padding-left: 1.4rem;
+}
+
+.matter-list li {
+  padding: 10px 0;
+  border-bottom: 1px solid #eee6d8;
+}
+
+.matter-link {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 4px 10px;
+  color: inherit;
+  text-decoration: none;
+}
+
+.matter-link:hover .title,
+.matter-link:focus-visible .title {
+  text-decoration: underline;
+}
+
+.matter-link:focus-visible {
+  outline: 2px solid #1f3a2e;
+  outline-offset: 2px;
+}
+
+.matter-link .title {
+  flex: 1 1 10rem;
+  font-weight: 700;
+}
+
+.actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.actions button {
+  flex: 1 1 8rem;
+}
+
+.dashboard button:disabled,
+.matter-detail button:disabled {
+  opacity: 0.55;
+}
+
+.badge {
+  display: inline-block;
+  max-width: 100%;
+  padding: 2px 8px;
+  border-radius: 999px;
+  background: #efe7da;
+  font-size: 0.85rem;
+}
+
+.badge-failed {
+  background: #f6d6d2;
+  color: #6b2218;
+}
+
+.badge-visit_agreed {
+  background: #d9efe3;
+}
+
+.badge-contacted {
+  background: #e3eaf8;
+}
+
+.dispatch-line {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px 10px;
+}
+
+.source {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding-bottom: 8px;
+  border-bottom: 1px solid #eee6d8;
+}
+
+.source img {
+  width: 96px;
+  height: 96px;
+  object-fit: cover;
+}
+
+.brief-body {
+  white-space: pre-wrap;
+}
+
+.note-error {
+  color: #6b2218;
+}
+
+@media (max-width: 640px) {
+  .matter-link .title {
+    flex-basis: 100%;
+  }
+}
