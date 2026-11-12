@@ -1,17 +1,22 @@
-import { useEffect, useLayoutEffect, useMemo, useRef } from 'react'
-import { ContactShadows, Html, OrbitControls } from '@react-three/drei'
+import { Suspense, useEffect, useLayoutEffect, useMemo, useRef } from 'react'
+import { ContactShadows, Environment, Html, OrbitControls } from '@react-three/drei'
 import { useFrame, useThree } from '@react-three/fiber'
 import type { OrbitControls as OrbitControlsImpl } from 'three-stdlib'
 import * as THREE from 'three'
 import type { Floor } from '../types'
 import { floorTitle, makeRoomSlab, roomFill, wallBoxes, warehouseRacks, type Bounds } from './geometry'
 import { OfficePark } from './OfficePark'
-import { disposeMaterials, storeyMaterials } from './surfaces'
+import { disposeMaterials, floorFinish, pbrMaps, storeyMaterials, worldPbrMaps } from './surfaces'
 
 const STOREY_HEIGHT = 2.62
 const WALL_HEIGHT = 1.05
 const WINDOW = '#1a9aaa'
 const TRIM = '#f4f7f8'
+const INTERIOR_WALL = '#30353b'
+const PANE_BACKING = '#24434d'
+// Poly Haven's Potsdamer Platz (CC0) is the HDRI behind drei's `city` preset, vendored locally
+// so the scene never depends on a CDN at runtime or in headless capture.
+const HDRI = '/hdri/potsdamer_platz_1k.hdr'
 
 type BuildingViewProps = {
   floors: Floor[]
@@ -27,8 +32,11 @@ export function BuildingView({ floors, bounds, highlightId, showDressing, onHove
   return (
     <>
       <color attach="background" args={['#d5e3ee']} />
-      <hemisphereLight args={['#f4f8fc', '#8d9a72', 0.55]} />
-      <ambientLight intensity={0.38} />
+      <Suspense fallback={null}>
+        <Environment files={HDRI} environmentIntensity={0.55} />
+      </Suspense>
+      <hemisphereLight args={['#f4f8fc', '#8d9a72', 0.4]} />
+      <ambientLight intensity={0.22} />
       <KeyLight cx={bounds.cx} front={bounds.maxZ} />
       <directionalLight position={[bounds.cx - 12, 10, bounds.maxZ + 6]} intensity={0.28} color="#fff4e5" />
       <OfficePark bounds={bounds} showDressing={showDressing} />
@@ -330,8 +338,16 @@ function FloorInterior({ floor, bounds }: { floor: Floor; bounds: Bounds }) {
     () =>
       floor.rooms.map((room) => ({
         id: room.id,
-        color: roomFill(room.name),
         geometry: makeRoomSlab(room.points, bounds.cx, bounds.cz),
+        // Slab UVs are plan coordinates in metres, so the shared world-scale maps tile at true size.
+        material: new THREE.MeshStandardMaterial({
+          ...worldPbrMaps(floorFinish(room.name)),
+          color: roomFill(room.name),
+          roughness: 1,
+          metalness: 0,
+          normalScale: new THREE.Vector2(0.6, 0.6),
+          side: THREE.DoubleSide,
+        }),
       })),
     [bounds.cx, bounds.cz, floor.rooms],
   )
@@ -341,41 +357,57 @@ function FloorInterior({ floor, bounds }: { floor: Floor; bounds: Bounds }) {
     geometry.translate(0, WALL_HEIGHT / 2, 0)
     return geometry
   }, [])
+  const wallMaterial = useMemo(
+    () =>
+      new THREE.MeshStandardMaterial({
+        ...pbrMaps('plaster', 1, WALL_HEIGHT),
+        color: INTERIOR_WALL,
+        roughness: 1,
+        metalness: 0,
+        normalScale: new THREE.Vector2(0.5, 0.5),
+      }),
+    [],
+  )
+  const rackMaterial = useMemo(() => new THREE.MeshStandardMaterial({ color: '#8d7356', roughness: 0.8 }), [])
   useEffect(
     () => () => {
       for (const slab of slabs) slab.geometry.dispose()
-      wallGeometry.dispose()
+      disposeMaterials(slabs.map((slab) => slab.material))
     },
-    [slabs, wallGeometry],
+    [slabs],
+  )
+  useEffect(
+    () => () => {
+      wallGeometry.dispose()
+      disposeMaterials([wallMaterial, rackMaterial])
+    },
+    [rackMaterial, wallGeometry, wallMaterial],
   )
   return (
     <group position={[0, 0.08, 0]}>
       {slabs.map((slab) => (
-        <mesh key={slab.id} geometry={slab.geometry} raycast={() => null}>
-          <meshStandardMaterial color={slab.color} roughness={0.84} side={THREE.DoubleSide} />
-        </mesh>
+        <mesh key={slab.id} geometry={slab.geometry} material={slab.material} receiveShadow raycast={() => null} />
       ))}
       {warehouseRacks(floor.rooms).map((rack) => (
         <mesh
           key={`rack-${rack.x}-${rack.z}`}
           position={[rack.x + rack.w / 2 - bounds.cx, 0.8, rack.z + rack.d / 2 - bounds.cz]}
+          material={rackMaterial}
           raycast={() => null}
         >
           <boxGeometry args={[rack.w, 1.6, rack.d]} />
-          <meshStandardMaterial color="#8d7356" roughness={0.8} />
         </mesh>
       ))}
       {walls.map((wall) => (
         <mesh
           key={`${wall.x.toFixed(2)}:${wall.z.toFixed(2)}:${wall.rotationY.toFixed(3)}`}
           geometry={wallGeometry}
+          material={wallMaterial}
           position={[wall.x - bounds.cx, 0, wall.z - bounds.cz]}
           rotation={[0, wall.rotationY, 0]}
           scale={[1, 1, wall.length]}
           raycast={() => null}
-        >
-          <meshStandardMaterial color="#24282d" roughness={0.72} />
-        </mesh>
+        />
       ))}
     </group>
   )
@@ -408,6 +440,17 @@ function Parapet({ width, depth }: { width: number; depth: number }) {
 
 function DockDoor({ floor, bounds }: { floor: Floor; bounds: Bounds }) {
   const dock = floor.rooms.find((room) => room.id === 'loading_dock')
+  const doorMaterial = useMemo(
+    () =>
+      new THREE.MeshStandardMaterial({
+        ...pbrMaps('metal', 4.4, 2.5),
+        color: '#7d858c',
+        roughness: 1,
+        metalness: 0.55,
+      }),
+    [],
+  )
+  useEffect(() => () => disposeMaterials([doorMaterial]), [doorMaterial])
   if (!dock) return null
   let minZ = Infinity
   let maxZ = -Infinity
@@ -418,9 +461,8 @@ function DockDoor({ floor, bounds }: { floor: Floor; bounds: Bounds }) {
   const z = (minZ + maxZ) / 2 - bounds.cz
   return (
     <group position={[-bounds.width / 2 - 0.06, 1.25, z]} raycast={() => null}>
-      <mesh raycast={() => null}>
+      <mesh material={doorMaterial} raycast={() => null}>
         <boxGeometry args={[0.12, 2.5, 4.4]} />
-        <meshStandardMaterial color="#4e555c" roughness={0.55} metalness={0.35} />
       </mesh>
       {Array.from({ length: 6 }, (_, index) => (
         <mesh key={index} position={[0.08, -1 + index * 0.36, 0]} raycast={() => null}>
@@ -459,10 +501,16 @@ function Entrance({ depth }: { depth: number }) {
         <meshStandardMaterial color={TRIM} roughness={0.4} />
       </mesh>
       {[-0.42, 0.42].map((x) => (
-        <mesh key={x} position={[x, 0, 0.02]} raycast={() => null}>
-          <boxGeometry args={[0.7, 2.1, 0.04]} />
-          <meshStandardMaterial color={WINDOW} metalness={0.72} roughness={0.08} />
-        </mesh>
+        <group key={x}>
+          <mesh position={[x, 0, 0.0]} raycast={() => null}>
+            <boxGeometry args={[0.7, 2.1, 0.005]} />
+            <meshStandardMaterial color={PANE_BACKING} roughness={0.9} />
+          </mesh>
+          <mesh position={[x, 0, 0.025]} raycast={() => null}>
+            <boxGeometry args={[0.7, 2.1, 0.03]} />
+            <Glass color={WINDOW} />
+          </mesh>
+        </group>
       ))}
     </group>
   )
@@ -521,19 +569,28 @@ function FaceWindows({
         const at = start + index * (segment + gap)
         const frame: [number, number, number] = along === 'x' ? [at, y, sign * offset] : [sign * offset, y, at]
         const frameSize: [number, number, number] = along === 'x' ? [segment, paneH, 0.08] : [0.08, paneH, segment]
-        const glassSize: [number, number, number] = along === 'x' ? [segment - 0.16, paneH - 0.16, 0.05] : [0.05, paneH - 0.16, segment - 0.16]
-        const glassShift = sign * 0.03
-        const glass: [number, number, number] =
-          along === 'x' ? [frame[0], frame[1], frame[2] + glassShift] : [frame[0] + glassShift, frame[1], frame[2]]
+        const glassSize: [number, number, number] = along === 'x' ? [segment - 0.16, paneH - 0.16, 0.03] : [0.03, paneH - 0.16, segment - 0.16]
+        const backingSize: [number, number, number] =
+          along === 'x' ? [segment - 0.16, paneH - 0.16, 0.005] : [0.005, paneH - 0.16, segment - 0.16]
+        // Glass sits proud of the frame over a dark backing, so transmission reads as a dim interior
+        // rather than showing the white frame through the pane.
+        const shifted = (amount: number): [number, number, number] =>
+          along === 'x' ? [frame[0], frame[1], frame[2] + sign * amount] : [frame[0] + sign * amount, frame[1], frame[2]]
+        const backing = shifted(0.045)
+        const glass = shifted(0.065)
         return (
           <group key={index} raycast={() => null}>
             <mesh position={frame} raycast={() => null}>
               <boxGeometry args={frameSize} />
               <meshStandardMaterial color={TRIM} roughness={0.35} />
             </mesh>
+            <mesh position={backing} raycast={() => null}>
+              <boxGeometry args={backingSize} />
+              <meshStandardMaterial color={PANE_BACKING} roughness={0.9} />
+            </mesh>
             <mesh position={glass} raycast={() => null}>
               <boxGeometry args={glassSize} />
-              <meshStandardMaterial color={color} metalness={0.78} roughness={0.08} />
+              <Glass color={color} />
             </mesh>
           </group>
         )
@@ -560,12 +617,15 @@ function setTreeOpacity(root: THREE.Object3D | null, opacity: number, ghost: boo
 
 function fadeTree(root: THREE.Object3D | null, target: number, ghost: boolean, delta: number) {
   if (!root) return
+  // Materials can be shared by many meshes (interior walls, PBR slabs); damp each one once per frame.
+  const seen = new Set<THREE.Material>()
   root.traverse((child) => {
     const mesh = child as THREE.Mesh & { isLineSegments?: boolean }
     if (!mesh.isMesh && !mesh.isLineSegments) return
     const materials = Array.isArray(mesh.material) ? mesh.material : [mesh.material]
     for (const entry of materials) {
-      if (!entry || !('opacity' in entry)) continue
+      if (!entry || !('opacity' in entry) || seen.has(entry)) continue
+      seen.add(entry)
       const material = entry as THREE.MeshStandardMaterial
       material.opacity = THREE.MathUtils.damp(material.opacity, target, 14, delta)
       const seeThrough = ghost || material.opacity < 0.98
@@ -577,4 +637,19 @@ function fadeTree(root: THREE.Object3D | null, target: number, ghost: boolean, d
       }
     }
   })
+}
+
+function Glass({ color }: { color: string }) {
+  return (
+    <meshPhysicalMaterial
+      color={color}
+      metalness={0}
+      roughness={0.05}
+      transmission={0.92}
+      thickness={0.03}
+      ior={1.5}
+      specularIntensity={1}
+      envMapIntensity={1.4}
+    />
+  )
 }

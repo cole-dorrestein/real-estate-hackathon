@@ -3,7 +3,7 @@ import { Text, useGLTF } from '@react-three/drei'
 import { useFrame } from '@react-three/fiber'
 import * as THREE from 'three'
 import type { Bounds } from './geometry'
-import { asphaltMaterial } from './surfaces'
+import { asphaltMaterial, disposeMaterials } from './surfaces'
 
 const CARS = ['/models/sedan.glb', '/models/taxi.glb', '/models/suv.glb', '/models/hatchback-sports.glb'] as const
 const FONT = '/fonts/Tinos-Bold.ttf'
@@ -106,6 +106,7 @@ function DockApron() {
 
 function Asphalt({ width, depth, position }: { width: number; depth: number; position: [number, number, number] }) {
   const material = useMemo(() => asphaltMaterial(width, depth), [depth, width])
+  useEffect(() => () => disposeMaterials([material]), [material])
   return (
     <mesh rotation={[-Math.PI / 2, 0, 0]} position={position} raycast={() => null} material={material}>
       <planeGeometry args={[width, depth]} />
