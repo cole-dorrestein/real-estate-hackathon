@@ -7,6 +7,41 @@ import type { Floor, Matter, Pin, PlanViewerProps, Room, Vec2, Vec3, Wall } from
 const SLAB = 0.12
 const DRAG_PX = 5
 
+function planFrame(plan: PlanViewerProps['plan']): {
+  target: [number, number, number]
+  position: [number, number, number]
+  span: number
+} {
+  let minX = Infinity
+  let maxX = -Infinity
+  let minZ = Infinity
+  let maxZ = -Infinity
+  let minY = Infinity
+  let maxY = -Infinity
+  for (const floor of plan.floors) {
+    minY = Math.min(minY, floor.elevation)
+    maxY = Math.max(maxY, floor.elevation)
+    for (const room of floor.rooms) {
+      for (const [x, z] of room.points) {
+        minX = Math.min(minX, x)
+        maxX = Math.max(maxX, x)
+        minZ = Math.min(minZ, z)
+        maxZ = Math.max(maxZ, z)
+      }
+    }
+  }
+  const cx = Number.isFinite(minX) ? (minX + maxX) / 2 : 0
+  const cz = Number.isFinite(minZ) ? (minZ + maxZ) / 2 : 0
+  const cy = Number.isFinite(minY) ? (minY + maxY) / 2 : 0
+  const span = Number.isFinite(minX) ? Math.max(maxX - minX, maxZ - minZ, 1) : 8
+  const distance = span * 0.833
+  return {
+    target: [cx, cy, cz],
+    position: [cx + distance, cy + span * 0.982, cz + distance],
+    span,
+  }
+}
+
 function centroid(points: Vec2[]): Vec2 {
   const total = points.reduce<[number, number]>((sum, point) => [sum[0] + point[0], sum[1] + point[1]], [0, 0])
   const count = points.length || 1
@@ -338,6 +373,30 @@ function FlyToPin({ pin }: { pin?: Pin }) {
   return null
 }
 
+function FrameCamera({
+  position,
+  target,
+}: {
+  position: [number, number, number]
+  target: [number, number, number]
+}) {
+  const camera = useThree((state) => state.camera)
+  const controls = useThree((state) => state.controls)
+  const key = `${position.join(',')}|${target.join(',')}`
+  const applied = useRef('')
+
+  useEffect(() => {
+    const orbit = controls as unknown as { target: THREE.Vector3; update: () => void } | null
+    if (!orbit || applied.current === key) return
+    applied.current = key
+    camera.position.set(position[0], position[1], position[2])
+    orbit.target.set(target[0], target[1], target[2])
+    orbit.update()
+  }, [camera, controls, key, position, target])
+
+  return null
+}
+
 function Scene({
   plan,
   matters,
@@ -345,7 +404,8 @@ function Scene({
   floorMode,
   onPinClick,
   onDropRequest,
-}: PlanViewerProps & { floorMode: string }) {
+  frame,
+}: PlanViewerProps & { floorMode: string; frame: ReturnType<typeof planFrame> }) {
   const focus = matters.find((matter) => matter.pin.id === focusPinId)?.pin
   const floors = plan.floors.filter((floor) => floorMode === 'all' || floor.id === floorMode)
   const visible = new Set(floors.map((floor) => floor.id))
@@ -371,13 +431,14 @@ function Scene({
           />
         ))}
       <FlyToPin pin={focus} />
+      <FrameCamera position={frame.position} target={frame.target} />
       <OrbitControls
         makeDefault
         enableDamping={false}
         maxPolarAngle={Math.PI / 2.08}
         minDistance={2}
-        maxDistance={45}
-        target={[6.55, 1.5, 6.9]}
+        maxDistance={Math.max(45, frame.span * 4)}
+        target={frame.target}
       />
     </>
   )
@@ -391,6 +452,7 @@ export function PlanViewer(props: PlanViewerProps): JSX.Element {
     if (focusFloorId) setFloorMode(focusFloorId)
   }, [props.focusPinId, focusFloorId])
 
+  const frame = useMemo(() => planFrame(props.plan), [props.plan])
   const modes = ['all', ...props.plan.floors.map((floor) => floor.id)]
   return (
     <section style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
@@ -426,7 +488,10 @@ export function PlanViewer(props: PlanViewerProps): JSX.Element {
           background: '#e6e0d4',
         }}
       >
-        <Canvas camera={{ position: [18, 15, 18], fov: 42, near: 0.1, far: 200 }} style={{ width: '100%', height: '100%' }}>
+        <Canvas
+          camera={{ position: frame.position, fov: 42, near: 0.1, far: Math.max(200, frame.span * 20) }}
+          style={{ width: '100%', height: '100%' }}
+        >
           <Scene
             plan={props.plan}
             matters={props.matters}
@@ -434,6 +499,7 @@ export function PlanViewer(props: PlanViewerProps): JSX.Element {
             onPinClick={props.onPinClick}
             onDropRequest={props.onDropRequest}
             floorMode={floorMode}
+            frame={frame}
           />
         </Canvas>
       </div>
