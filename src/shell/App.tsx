@@ -39,7 +39,7 @@ export function App() {
 
   return (
     <div className="app">
-      <header>
+      <aside className="sidebar">
         <div className="brand">PM Copilot</div>
         <nav>
           <a
@@ -50,7 +50,7 @@ export function App() {
               navigate('/')
             }}
           >
-            Capture
+            Plan
           </a>
           <a
             href="/dashboard"
@@ -70,11 +70,12 @@ export function App() {
               navigate('/upload')
             }}
           >
-            Upload plan
+            Upload
           </a>
         </nav>
-      </header>
-      <main>
+      </aside>
+      <div className="workspace">
+        <main>
         {route.name === 'matter' ? (
           <MatterDetail matterId={route.matterId} />
         ) : route.name === 'dashboard' ? (
@@ -102,7 +103,8 @@ export function App() {
             />
           </div>
         )}
-      </main>
+        </main>
+      </div>
     </div>
   )
 }

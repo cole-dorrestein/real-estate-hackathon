@@ -5,7 +5,7 @@ import type { DispatchJob } from '../agent/types'
 import { navigate } from '../shell/router'
 import { getMattersStore, useMatters } from '../store/matters'
 import type { Matter } from '../types'
-import { dispatchLabel, isTerminalJob, takeTriageResult } from './agent'
+import { dispatchLabel, formatWhen, isTerminalJob, takeTriageResult } from './agent'
 import './dashboard.css'
 
 function priorityRank(matter: Matter): number {
@@ -36,6 +36,7 @@ function errorText(err: unknown): string {
 export function Dashboard(): JSX.Element {
   const matters = useMatters()
   const ranked = rankMatters(matters)
+  const [chip, setChip] = useState('all')
   const [jobs, setJobs] = useState<Record<string, DispatchJob | null>>({})
   const [note, setNote] = useState<string | null>(null)
   const [busy, setBusy] = useState(false)
@@ -120,59 +121,102 @@ export function Dashboard(): JSX.Element {
     }
   }
 
+  const shown = ranked.filter((matter) => chip === 'all' || (chip === 'open' ? matter.status !== 'dispatched' : chip === 'visit' ? jobs[matter.id]?.status === 'visit_agreed' : chip === 'failed' ? jobs[matter.id]?.status === 'failed' : matter.status === 'dispatched' && jobs[matter.id]?.status !== 'visit_agreed' && jobs[matter.id]?.status !== 'failed'))
+
   return (
     <section className="card dashboard">
-      <h1>Matters</h1>
-      <div className="actions">
-        <button type="button" onClick={() => void triageAll()} disabled={busy || openCount === 0}>
-          {busy ? 'Triaging…' : 'Triage all'}
-        </button>
+      <div className="dash-bar">
+        <h1>Matters</h1>
+        <div className="actions">
+          <button type="button" onClick={() => void triageAll()} disabled={busy || openCount === 0}>
+            {busy ? 'Triaging…' : 'Triage all'}
+          </button>
+        </div>
       </div>
       {note ? (
         <p className="note-error" role="status">
           {note}
         </p>
       ) : null}
+      <div className="filters" role="group" aria-label="Filter matters">
+        {(
+          [
+            ['all', 'All'],
+            ['open', 'Open'],
+            ['dispatched', 'Dispatched'],
+            ['visit', 'Visit booked'],
+            ['failed', 'Failed'],
+          ] as const
+        ).map(([id, text]) => (
+          <button key={id} type="button" className="filter-chip" aria-pressed={chip === id} onClick={() => setChip(id)}>
+            {text}
+          </button>
+        ))}
+      </div>
       {ranked.length === 0 ? (
         <p>No matters yet.</p>
       ) : (
-        <ol className="matter-list">
-          {ranked.map((matter) => {
-            const to = `/dashboard/matters/${encodeURIComponent(matter.id)}`
-            const job = matter.status === 'dispatched' ? (jobs[matter.id] ?? null) : null
-            const label = job
-              ? dispatchLabel(job)
-              : matter.status === 'dispatched'
-                ? { text: 'Dispatched', error: undefined }
-                : null
-            const contractor = job?.contractorName ?? matter.dispatch?.contractorName
-            return (
-              <li key={matter.id}>
-                <a
-                  className="matter-link"
-                  href={to}
-                  onClick={(event) => {
-                    event.preventDefault()
-                    navigate(to)
-                  }}
-                >
-                  <span className="title">{matter.title}</span>
-                  <span className="meta">{place(matter)}</span>
-                  <span className={`chip chip-${matter.triage?.priority ?? 'none'}`}>{matter.triage?.priority ?? '—'}</span>
-                  <span className="meta">{matter.triage?.trade ?? '—'}</span>
-                  <span className={`chip chip-status-${matter.status}`}>{matter.status}</span>
-                  {label ? (
-                    <span className="dispatch-line">
-                      <span className={`badge badge-${job?.status ?? 'dispatched'}`}>{label.text}</span>
-                      {label.error ? <span className="note-error">{label.error}</span> : null}
-                      {contractor ? <span className="meta">{contractor}</span> : null}
-                    </span>
-                  ) : null}
-                </a>
-              </li>
-            )
-          })}
-        </ol>
+        <div className="table-wrap">
+          <table className="matter-table">
+            <thead>
+              <tr>
+                <th>Priority</th>
+                <th>Title</th>
+                <th>Location</th>
+                <th>Trade</th>
+                <th>Contractor</th>
+                <th>Status</th>
+                <th>Visit</th>
+              </tr>
+            </thead>
+            <tbody>
+              {shown.map((matter) => {
+                const to = `/dashboard/matters/${encodeURIComponent(matter.id)}`
+                const job = matter.status === 'dispatched' ? (jobs[matter.id] ?? null) : null
+                const label = job
+                  ? dispatchLabel(job)
+                  : matter.status === 'dispatched'
+                    ? { text: 'Dispatched', error: undefined }
+                    : null
+                const contractor = job?.contractorName ?? matter.dispatch?.contractorName ?? matter.brief?.contractorName
+                return (
+                  <tr key={matter.id} className="matter-row">
+                    <td>
+                      <span className={`chip chip-${matter.triage?.priority ?? 'none'}`}>{matter.triage?.priority ?? '—'}</span>
+                    </td>
+                    <td>
+                      <a
+                        className="matter-link"
+                        href={to}
+                        onClick={(event) => {
+                          event.preventDefault()
+                          navigate(to)
+                        }}
+                      >
+                        <span className="title">{matter.title}</span>
+                      </a>
+                    </td>
+                    <td>{place(matter)}</td>
+                    <td>{matter.triage?.trade ?? '—'}</td>
+                    <td>{contractor ?? '—'}</td>
+                    <td>
+                      {label ? (
+                        <span className="dispatch-line">
+                          <span className={`badge badge-${job?.status ?? 'dispatched'}`}>{label.text}</span>
+                          {label.error ? <span className="note-error">{label.error}</span> : null}
+                        </span>
+                      ) : (
+                        <span className={`chip chip-status-${matter.status}`}>{matter.status}</span>
+                      )}
+                    </td>
+                    <td>{job?.visitAt ? formatWhen(job.visitAt) : '—'}</td>
+                  </tr>
+                )
+              })}
+            </tbody>
+          </table>
+          {shown.length === 0 ? <p className="meta">No matters in this view.</p> : null}
+        </div>
       )}
     </section>
   )
