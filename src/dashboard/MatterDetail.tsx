@@ -175,8 +175,11 @@ export function MatterDetail({ matterId }: { matterId: string }): JSX.Element {
       </p>
       <h1>{matter.title}</h1>
       <p>{matter.description}</p>
-      <p className="meta">
-        {place(matter)} · {matter.triage?.priority ?? '—'} · {matter.triage?.trade ?? '—'} · {matter.status}
+      <p className="matter-facts">
+        <span className="meta">{place(matter)}</span>
+        <span className={`chip chip-${matter.triage?.priority ?? 'none'}`}>{matter.triage?.priority ?? '—'}</span>
+        <span className="meta">{matter.triage?.trade ?? '—'}</span>
+        <span className={`chip chip-status-${matter.status}`}>{matter.status}</span>
       </p>
       {matter.triage ? <p>{matter.triage.summary}</p> : null}
 
