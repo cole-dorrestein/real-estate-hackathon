@@ -7,16 +7,20 @@ const JPEG_QUALITY = 0.8
 
 type DraftPhoto = { id: string; dataUrl: string; mimeType: string }
 
+type SpeechResult = ArrayLike<{ transcript: string }> & { isFinal: boolean }
+
 type SpeechResultEvent = {
-  results: ArrayLike<ArrayLike<{ transcript: string }>>
+  results: ArrayLike<SpeechResult>
 }
+
+type SpeechErrorEvent = { error?: string }
 
 type SpeechSession = {
   lang: string
   interimResults: boolean
   continuous: boolean
   onresult: ((event: SpeechResultEvent) => void) | null
-  onerror: (() => void) | null
+  onerror: ((event: SpeechErrorEvent) => void) | null
   onend: (() => void) | null
   start: () => void
   stop: () => void
@@ -37,13 +41,35 @@ function titleFromDescription(description: string): string {
   return words || 'Untitled matter'
 }
 
-function transcriptOf(event: SpeechResultEvent): string {
-  const parts: string[] = []
-  for (let i = 0; i < event.results.length; i++) {
-    const text = event.results[i]?.[0]?.transcript?.trim()
-    if (text) parts.push(text)
+function dictationErrorMessage(code: string | undefined): string {
+  switch (code) {
+    case 'not-allowed':
+    case 'service-not-allowed':
+      return 'Allow microphone access to dictate. If this browser does not support Web Speech, use Chrome or Safari.'
+    case 'audio-capture':
+      return 'No microphone was detected.'
+    case 'network':
+      return 'Speech recognition needs an internet connection. Use Google Chrome or Safari.'
+    case 'no-speech':
+      return 'No speech detected — try speaking closer to the mic.'
+    default:
+      return code
+        ? `Dictation failed (${code}). You can still type the description.`
+        : 'Dictation is unavailable right now. You can still type the description.'
   }
-  return parts.join(' ')
+}
+
+function heardTranscript(event: SpeechResultEvent): { finalTranscript: string; interimTranscript: string } {
+  const finals: string[] = []
+  const interim: string[] = []
+  for (let i = 0; i < event.results.length; i++) {
+    const result = event.results[i]
+    const text = result?.[0]?.transcript?.trim()
+    if (!text) continue
+    if (result?.isFinal) finals.push(text)
+    else interim.push(text)
+  }
+  return { finalTranscript: finals.join(' '), interimTranscript: interim.join(' ') }
 }
 
 async function downscalePhoto(file: File): Promise<DraftPhoto> {
@@ -116,23 +142,37 @@ function CaptureSheet(props: {
       return
     }
     const session = new Ctor()
+    let finalTranscript = ''
+    let interimTranscript = ''
     let committed = false
-    session.lang = 'en-US'
-    session.interimResults = false
-    session.continuous = false
-    session.onresult = (event) => {
+    let ended = false
+    const commitHeard = () => {
       if (committed) return
-      const transcript = transcriptOf(event)
+      const transcript = (finalTranscript || interimTranscript).trim()
       if (!transcript) return
       committed = true
       setDescription((current) => (current.trim() ? `${current.trim()} ${transcript}` : transcript))
       setDictations((current) => [...current, transcript])
     }
-    session.onerror = () => {
-      setListening(false)
-      setError('Dictation is unavailable right now. You can still type the description.')
+    session.lang = 'en-US'
+    session.interimResults = true
+    session.continuous = true
+    session.onresult = (event) => {
+      const heard = heardTranscript(event)
+      finalTranscript = heard.finalTranscript
+      interimTranscript = heard.interimTranscript
+      if (ended) commitHeard()
     }
-    session.onend = () => setListening(false)
+    session.onerror = (event) => {
+      if (event.error === 'no-speech' && session.continuous) return
+      setListening(false)
+      setError(dictationErrorMessage(event.error))
+    }
+    session.onend = () => {
+      ended = true
+      commitHeard()
+      setListening(false)
+    }
     sessionRef.current = session
     try {
       session.start()
