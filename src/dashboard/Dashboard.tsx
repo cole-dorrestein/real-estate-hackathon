@@ -102,6 +102,7 @@ export function Dashboard(): JSX.Element {
         const picked = takeTriageResult(await triageMatter(current))
         const updatedAt = new Date().toISOString()
         getMattersStore().upsert({
+          ...current,
           id: current.id,
           title: current.title,
           description: current.description,
@@ -197,7 +198,7 @@ export function Dashboard(): JSX.Element {
                       </a>
                     </td>
                     <td>{place(matter)}</td>
-                    <td>{matter.triage?.trade ?? '—'}</td>
+                    <td>{matter.triage?.trade ?? matter.issueType ?? '—'}</td>
                     <td>{contractor ?? '—'}</td>
                     <td>
                       {label ? (

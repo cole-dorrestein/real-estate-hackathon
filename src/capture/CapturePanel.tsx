@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState, type FormEvent, type JSX } from 'react'
 import type { CapturePanelProps, Pin, PlanHit, SourceRef } from '../types'
+import { inferIssue } from './issueDetails'
 import './capture.css'
 
 const MAX_SIDE = 1280
@@ -30,11 +31,6 @@ function speechRecognitionCtor(): SpeechCtor | null {
     webkitSpeechRecognition?: SpeechCtor
   }
   return host.SpeechRecognition ?? host.webkitSpeechRecognition ?? null
-}
-
-function titleFromDescription(description: string): string {
-  const words = description.trim().split(/\s+/).slice(0, 8).join(' ')
-  return words || 'Untitled matter'
 }
 
 function transcriptOf(event: SpeechResultEvent): string {
@@ -73,17 +69,18 @@ function CaptureSheet(props: {
   onCancel: () => void
   onSave: CapturePanelProps['onSave']
 }) {
-  const [title, setTitle] = useState('')
   const [description, setDescription] = useState('')
   const [photos, setPhotos] = useState<DraftPhoto[]>([])
   const [dictations, setDictations] = useState<string[]>([])
   const [busy, setBusy] = useState(false)
   const [listening, setListening] = useState(false)
+  const [interim, setInterim] = useState('')
   const [error, setError] = useState('')
   const sessionRef = useRef<SpeechSession | null>(null)
   const fileRef = useRef<HTMLInputElement>(null)
   const canDictate = speechRecognitionCtor() !== null
   const place = [props.hit.floorId, props.hit.roomName].filter(Boolean).join(' · ')
+  const issue = inferIssue([description, interim].filter(Boolean).join(' '))
 
   useEffect(() => {
     return () => {
@@ -116,23 +113,27 @@ function CaptureSheet(props: {
       return
     }
     const session = new Ctor()
-    let committed = false
+    let transcript = ''
     session.lang = 'en-US'
-    session.interimResults = false
+    session.interimResults = true
     session.continuous = false
     session.onresult = (event) => {
-      if (committed) return
-      const transcript = transcriptOf(event)
-      if (!transcript) return
-      committed = true
-      setDescription((current) => (current.trim() ? `${current.trim()} ${transcript}` : transcript))
-      setDictations((current) => [...current, transcript])
+      transcript = transcriptOf(event)
+      setInterim(transcript)
     }
     session.onerror = () => {
       setListening(false)
       setError('Dictation is unavailable right now. You can still type the description.')
     }
-    session.onend = () => setListening(false)
+    session.onend = () => {
+      setListening(false)
+      setInterim('')
+      if (transcript) {
+        setDescription((current) => (current.trim() ? `${current.trim()} ${transcript}` : transcript))
+        setDictations((current) => [...current, transcript])
+      }
+      sessionRef.current = null
+    }
     sessionRef.current = session
     try {
       session.start()
@@ -146,7 +147,7 @@ function CaptureSheet(props: {
 
   function onSubmit(event: FormEvent) {
     event.preventDefault()
-    if (busy) return
+    if (busy || listening || !description.trim()) return
     const now = new Date().toISOString()
     const descriptionText = description.trim()
     const pin: Pin = {
@@ -174,7 +175,8 @@ function CaptureSheet(props: {
       sources.push({ id: crypto.randomUUID(), kind: 'dictation', text, createdAt: now })
     }
     props.onSave({
-      title: title.trim() || titleFromDescription(descriptionText),
+      title: inferIssue(descriptionText).title || 'Untitled matter',
+      issueType: inferIssue(descriptionText).trade,
       description: descriptionText,
       sources,
       pin,
@@ -186,76 +188,58 @@ function CaptureSheet(props: {
       <div className="cap-backdrop" onClick={props.onCancel} />
       <form className="cap-sheet" onSubmit={onSubmit}>
         <div className="cap-grab" aria-hidden="true" />
-        <h1>Log an issue</h1>
-        <p className="cap-place">{place}</p>
-        <label className="cap-field">
-          Title
-          <input
-            value={title}
-            placeholder="Short title"
-            onChange={(event) => setTitle(event.target.value)}
-          />
-        </label>
-        <label className="cap-field">
-          Description
+        <div className="cap-heading">
+          <div><h1>What needs attention?</h1><p className="cap-place">{place}</p></div>
+          <button type="button" className="cap-close" onClick={props.onCancel} aria-label="Close">×</button>
+        </div>
+        <button
+          type="button"
+          className={`cap-dictate${listening ? ' is-listening' : ''}`}
+          onClick={onDictate}
+          disabled={!canDictate}
+          aria-pressed={listening}
+        >
+          <svg viewBox="0 0 24 24" width="22" height="22" aria-hidden="true" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+            <path d="M12 2a3 3 0 0 0-3 3v7a3 3 0 0 0 6 0V5a3 3 0 0 0-3-3z" />
+            <path d="M19 10v2a7 7 0 0 1-14 0v-2" /><path d="M12 19v3" />
+          </svg>
+          <span>{listening ? 'Listening… tap to finish' : 'Tap to describe the issue'}</span>
+        </button>
+        {!canDictate ? <p className="cap-status">Dictation isn’t available in this browser. Type below instead.</p> : null}
+        <label className="cap-description">
+          <span className="cap-label">Your description</span>
           <textarea
-            value={description}
-            rows={4}
-            placeholder="What needs attention?"
+            value={[description, interim].filter(Boolean).join(' ')}
+            rows={3}
+            placeholder="Describe what you see, or type here…"
+            readOnly={listening}
             onChange={(event) => setDescription(event.target.value)}
           />
         </label>
+        {issue.title ? (
+          <div className="cap-summary" aria-live="polite">
+            <div><span className="cap-label">Title</span><strong>{issue.title}</strong></div>
+            <div><span className="cap-label">Issue type</span><strong>{issue.label}</strong></div>
+          </div>
+        ) : null}
         <label className="cap-file">
-          {busy ? 'Resizing photos…' : photos.length > 0 ? `Add photos (${photos.length})` : 'Add photos'}
-          <input
-            ref={fileRef}
-            type="file"
-            accept="image/*"
-            capture="environment"
-            multiple
-            onChange={(event) => void onFiles(event.target.files)}
-          />
+          <span aria-hidden="true">＋</span> {busy ? 'Preparing photos…' : 'Add photos'}
+          <input ref={fileRef} type="file" accept="image/*" multiple disabled={busy}
+            onChange={(event) => void onFiles(event.target.files)} />
         </label>
         {photos.length > 0 ? (
           <ul className="cap-photos">
-            {photos.map((photo) => (
+            {photos.map((photo, index) => (
               <li key={photo.id}>
-                <img src={photo.dataUrl} alt="Attached" />
-                <button
-                  type="button"
-                  onClick={() => setPhotos((current) => current.filter((item) => item.id !== photo.id))}
-                >
-                  Remove
-                </button>
+                <img src={photo.dataUrl} alt={`Attachment ${index + 1}`} />
+                <button type="button" aria-label={`Remove photo ${index + 1}`}
+                  onClick={() => setPhotos((current) => current.filter((item) => item.id !== photo.id))}>×</button>
               </li>
             ))}
           </ul>
         ) : null}
-        {canDictate ? (
-          <button
-            type="button"
-            className="cap-dictate"
-            onClick={onDictate}
-            aria-label="Dictate"
-            aria-pressed={listening}
-          >
-            <svg viewBox="0 0 24 24" width="16" height="16" aria-hidden="true" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-              <path d="M12 2a3 3 0 0 0-3 3v7a3 3 0 0 0 6 0V5a3 3 0 0 0-3-3z" />
-              <path d="M19 10v2a7 7 0 0 1-14 0v-2" />
-              <path d="M12 19v3" />
-            </svg>
-          </button>
-        ) : null}
-        {listening ? <p className="cap-status">Listening…</p> : null}
-        {error ? <p className="cap-error">{error}</p> : null}
-        <div className="cap-actions">
-          <button type="submit" disabled={busy}>
-            Save matter
-          </button>
-          <button type="button" className="secondary" onClick={props.onCancel}>
-            Cancel
-          </button>
-        </div>
+        {error ? <p className="cap-error" role="alert">{error}</p> : null}
+        <button className="cap-save" type="submit" disabled={busy || listening || !description.trim()}>Save issue</button>
       </form>
     </>
   )

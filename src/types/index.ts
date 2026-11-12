@@ -14,7 +14,7 @@ export type Trade = 'plumber' | 'electrician' | 'carpenter' | 'general'
 export type Triage = { priority: Priority; trade: Trade; summary: string; reasoning: string; model: string; at: string }
 export type ContractorBrief = { contractorName: string; trade: Trade; locationText: string; pinUrl: string; body: string; at: string } // pinUrl = origin + "/?pin=" + pin.id
 export type Dispatch = { status: 'simulated'; channel: 'dashboard'; sentAt: string; contractorName: string }
-export type Matter = { id: string; title: string; description: string; pin: Pin; sources: SourceRef[]; status: MatterStatus; triage?: Triage; brief?: ContractorBrief; dispatch?: Dispatch; createdAt: string; updatedAt: string }
+export type Matter = { id: string; title: string; description: string; issueType?: Trade; pin: Pin; sources: SourceRef[]; status: MatterStatus; triage?: Triage; brief?: ContractorBrief; dispatch?: Dispatch; createdAt: string; updatedAt: string }
 export type PlanHit = { position: Vec3; normal?: Vec3; floorId: FloorId; roomId?: string; roomName?: string }
 export type PlanViewerProps = { plan: BuildingPlan; matters: Matter[]; focusPinId?: string; onPinClick?: (pinId: string) => void; onDropRequest?: (hit: PlanHit) => void }
-export type CapturePanelProps = { pendingHit: PlanHit | null; onCancel: () => void; onSave: (input: { title: string; description: string; sources: SourceRef[]; pin: Pin }) => void }
+export type CapturePanelProps = { pendingHit: PlanHit | null; onCancel: () => void; onSave: (input: { title: string; description: string; issueType: Trade; sources: SourceRef[]; pin: Pin }) => void }

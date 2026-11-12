@@ -1,170 +1,29 @@
-.cap-hint {
-  position: fixed;
-  left: 50%;
-  bottom: 12px;
-  z-index: 30;
-  width: min(420px, calc(100% - 24px));
-  margin: 0;
-  padding: 10px 14px;
-  border: 1px solid #e4e4e7;
-  border-radius: 8px;
-  background: #fff;
-  color: #09090b;
-  font-weight: 500;
-  text-align: center;
-  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.04);
-  transform: translateX(-50%);
-}
-
-.cap-backdrop {
-  position: fixed;
-  inset: 0;
-  z-index: 30;
-  background: rgba(9, 9, 11, 0.4);
-}
-
-.cap-sheet {
-  position: fixed;
-  left: 50%;
-  bottom: 0;
-  z-index: 31;
-  width: min(480px, 100%);
-  transform: translateX(-50%);
-  display: flex;
-  flex-direction: column;
-  gap: 12px;
-  max-height: 85dvh;
-  overflow: auto;
-  margin: 0;
-  padding: 12px 16px calc(16px + env(safe-area-inset-bottom));
-  border: 1px solid #e4e4e7;
-  border-bottom: 0;
-  border-radius: 8px 8px 0 0;
-  background: #fff;
-  box-shadow: 0 -1px 2px rgba(0, 0, 0, 0.04);
-}
-
-.cap-grab {
-  width: 36px;
-  height: 4px;
-  margin: 0 auto 4px;
-  border-radius: 6px;
-  background: #e4e4e7;
-}
-
-.cap-place {
-  color: #71717a;
-  font-size: 13px;
-  font-weight: 500;
-}
-
-.cap-sheet label.cap-field { font-weight: 500; }
-
-.cap-sheet input,
-.cap-sheet textarea {
-  font-weight: 400;
-  min-height: 36px;
-}
-
-.cap-sheet textarea {
-  min-height: 96px;
-  resize: vertical;
-}
-
-.cap-file {
-  position: relative;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  min-height: 36px;
-  border: 1px solid #e4e4e7;
-  border-radius: 6px;
-  background: #fff;
-  color: #09090b;
-  font-weight: 500;
-  cursor: pointer;
-}
-
-.cap-file input {
-  position: absolute;
-  width: 1px;
-  height: 1px;
-  padding: 0;
-  margin: -1px;
-  overflow: hidden;
-  clip: rect(0, 0, 0, 0);
-  white-space: nowrap;
-  border: 0;
-  min-height: 0;
-}
-
-.cap-photos {
-  display: flex;
-  gap: 8px;
-  margin: 0;
-  padding: 0;
-  overflow-x: auto;
-  list-style: none;
-}
-
-.cap-photos li {
-  display: flex;
-  flex: 0 0 auto;
-  flex-direction: column;
-  gap: 4px;
-  padding: 0;
-  border: 0;
-}
-
-.cap-photos img {
-  width: 96px;
-  height: 96px;
-  object-fit: cover;
-}
-
-.cap-photos button {
-  min-height: 32px;
-  background: #fff;
-  color: #09090b;
-  border: 1px solid #e4e4e7;
-}
-
-button.cap-dictate {
-  width: 36px;
-  height: 36px;
-  min-height: 36px;
-  padding: 0;
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  align-self: flex-start;
-  border: 1px solid #e4e4e7;
-  border-radius: 6px;
-  background: #fff;
-  color: #18181b;
-  box-shadow: none;
-}
-
-button.cap-dictate[aria-pressed='true'] {
-  background: #18181b;
-  border-color: #18181b;
-  color: #fff;
-}
-
-button.cap-dictate svg { display: block; }
-
-.cap-actions {
-  display: flex;
-  flex-direction: column;
-  gap: 8px;
-}
-
-.cap-actions button {
-  width: 100%;
-  min-height: 36px;
-  font-weight: 500;
-}
-
-.cap-status { color: #71717a; font-weight: 500; }
-
-.cap-error { color: #b91c1c; font-weight: 500; }
+.cap-hint { position: fixed; left: 50%; bottom: 12px; z-index: 30; width: min(420px, calc(100% - 24px)); margin: 0; padding: 10px 14px; border: 1px solid #e4e4e7; border-radius: 8px; background: #fff; color: #09090b; font-weight: 500; text-align: center; transform: translateX(-50%); }
+.cap-backdrop { position: fixed; inset: 0; z-index: 30; background: rgba(9, 9, 11, .4); }
+.cap-sheet { position: fixed; left: 50%; bottom: 0; z-index: 31; width: min(480px, 100%); max-height: 90dvh; overflow: auto; transform: translateX(-50%); display: flex; flex-direction: column; gap: 16px; margin: 0; padding: 12px 22px calc(22px + env(safe-area-inset-bottom)); border: 1px solid #e4e4e7; border-radius: 18px 18px 0 0; background: #fff; }
+.cap-grab { width: 36px; height: 4px; margin: 0 auto 2px; border-radius: 6px; background: #e4e4e7; }
+.cap-heading { display: flex; justify-content: space-between; align-items: flex-start; gap: 12px; }
+.cap-heading h1 { margin: 0; font-size: 22px; }
+.cap-place { margin: 5px 0 0; color: #71717a; font-size: 13px; }
+button.cap-close { width: 32px; min-height: 32px; padding: 0; border: 0; background: transparent; color: #71717a; font-size: 24px; line-height: 1; }
+button.cap-dictate { display: flex; align-items: center; justify-content: center; gap: 12px; width: 100%; min-height: 68px; padding: 14px; border: 0; border-radius: 12px; background: #18181b; color: white; font-size: 15px; font-weight: 600; }
+button.cap-dictate.is-listening { background: #b91c1c; }
+button.cap-dictate:disabled { opacity: .5; }
+.cap-description { display: flex; flex-direction: column; gap: 6px; }
+.cap-label { display: block; color: #71717a; font-size: 12px; font-weight: 600; }
+.cap-sheet textarea { width: 100%; min-height: 70px; resize: vertical; font: inherit; }
+.cap-summary { display: grid; grid-template-columns: 1fr auto; gap: 16px; padding: 14px; border-radius: 10px; background: #f4f4f5; }
+.cap-summary strong { display: block; margin-top: 4px; font-size: 14px; }
+.cap-file { display: inline-flex; align-items: center; align-self: flex-start; gap: 5px; color: #3f3f46; font-weight: 600; cursor: pointer; }
+.cap-file span { font-size: 20px; }
+.cap-file input { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0, 0, 0, 0); }
+.cap-file:focus-within { outline: 2px solid #18181b; outline-offset: 4px; }
+.cap-photos { display: flex; gap: 8px; margin: 0; padding: 0; overflow-x: auto; list-style: none; }
+.cap-photos li { position: relative; flex: 0 0 auto; padding: 0; border: 0; }
+.cap-photos img { display: block; width: 72px; height: 72px; border-radius: 8px; object-fit: cover; }
+.cap-photos button { position: absolute; right: 3px; top: 3px; width: 24px; min-height: 24px; padding: 0; border: 0; border-radius: 50%; background: #18181b; color: #fff; line-height: 1; }
+button.cap-save { width: 100%; min-height: 46px; font-weight: 600; }
+.cap-status, .cap-error { margin: 0; font-size: 13px; }
+.cap-status { color: #71717a; }
+.cap-error { color: #b91c1c; }
+.capture-layout button.cap-dictate[aria-pressed='false'] { background: #18181b !important; color: #fff !important; border: 0 !important; }

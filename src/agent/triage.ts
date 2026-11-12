@@ -25,6 +25,8 @@ export async function triageMatter(matter: Matter): Promise<{ triage: Triage; br
     }
   }
 
+  if (matter.issueType) trade = matter.issueType
+
   const broken = matchedKeywords(text, ['broken']).length > 0
   const urgent = matchedKeywords(text, URGENT_KEYWORDS)
   const l2Kitchen = isL2Kitchen(matter)
