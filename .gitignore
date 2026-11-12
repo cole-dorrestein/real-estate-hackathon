@@ -1,0 +1,12 @@
+node_modules/
+dist/
+*.tsbuildinfo
+
+.env.local
+.env*.local
+
+# ResPlan download and conversion scratch. Never commit the dataset.
+.tmp-resplan/
+ResPlan.zip
+ResPlan/
+*.pkl
